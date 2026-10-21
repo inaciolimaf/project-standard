@@ -1,32 +1,42 @@
-# Docker, compose e deploy
+# Docker, compose and deploy
 
-## Dois compose
+## Two compose files
 
-Resumo abaixo; a lista completa do que muda para produção, com o porquê de cada item, está em
-[coolify.md](coolify.md).
+Summary below; the complete list of what changes for production, with the reason for each item,
+is in [coolify.md](coolify.md). Variable names are Crivo's (Portuguese, set on the server, never
+renamed); a new project names them in English.
 
-| | `docker-compose.yml` (local) | `docker-compose-<paas>.yml` (produção, ex.: Coolify) |
+| | `docker-compose.yml` (local) | `docker-compose-<paas>.yml` (production, e.g. Coolify) |
 |---|---|---|
-| Rede | `ports: "${PORTA_X:-padrao}:porta"` | `expose` — só o proxy do PaaS fala com os serviços; `ports` deixaria o Postgres na internet |
-| Domínio | — | só o `web`; o Caddy dele faz proxy de `/api` e `/health` (um domínio, sem CORS nem cookie cross-site) |
-| Segredos | `${SEGREDO:?defina SEGREDO no .env}`; senha do banco com padrão de dev | todos com `:?`, inclusive `POSTGRES_PASSWORD` |
-| `AMBIENTE` | `${AMBIENTE:-local}` | `producao` fixo, `COOKIES_SEGUROS: "true"` |
-| Migração | `make migrar` | `MIGRAR_AO_SUBIR: "true"` no entrypoint |
-| Volumes de dados | `./dados:/app/dados:ro` | `${CAMINHO_DADOS:-/data/<app>/dados}:/app/dados:ro` |
-| Reinício | — | `restart: unless-stopped`, `start_period` no healthcheck |
+| Network | `ports: "${PORT_X:-default}:port"` | `expose` — only the PaaS proxy talks to the services; `ports` would put Postgres on the internet |
+| Domain | — | only `web`; its Caddy proxies `/api` and `/health` (one domain, no CORS nor cross-site cookie) |
+| Secrets | `${SECRET:?set SECRET in .env}`; database password with a dev default | all with `:?`, including `POSTGRES_PASSWORD` |
+| Environment | `${AMBIENTE:-local}` | production fixed (`AMBIENTE: producao`), `COOKIES_SEGUROS: "true"` |
+| Migration | the Makefile's migrate target | `MIGRAR_AO_SUBIR: "true"` in the entrypoint |
+| Data volumes | `./data:/app/data:ro` | `${DATA_PATH:-/data/<app>/data}:/app/data:ro` |
+| Restart | — | `restart: unless-stopped`, `start_period` in the healthcheck |
 
-O compose de produção começa com um comentário numerado listando as diferenças para o local.
+The production compose starts with a numbered comment listing the differences from the local one.
 
-Comuns:
-- `name: <app>` no topo.
-- Todo serviço com `healthcheck`; dependentes com `depends_on: condition: service_healthy`.
+Common:
+- `name: <app>` at the top.
+- Every service with a `healthcheck`; dependents with `depends_on: condition: service_healthy`.
   API: `python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"`
-  (sem instalar curl). Postgres: `pg_isready -U ... -d ...`.
-- Variáveis com padrão `${VAR:-padrao}`; `TZ` em todo serviço.
-- Postgres com parâmetros de memória no `command` e `shm_size` quando há carga grande.
-- Dados grandes (GBs) **sempre volume**, nunca camada da imagem.
+  (without installing curl). Postgres: `pg_isready -U ... -d ...`.
+- Variables with a default `${VAR:-default}`; `TZ` on every service.
+- Postgres with memory parameters in `command` and `shm_size` when there is a large load.
+- Large data (GBs) **always a volume**, never an image layer.
 
-## Dockerfile do back (`docker/api.Dockerfile`)
+## Environment variables: a contract with whoever runs it
+
+**An environment variable configured by hand on the server is never renamed or removed** —
+renaming breaks the next deploy silently. The compose files keep passing the existing names;
+when the code's settings field has another name, it reads the variable by alias (`runtime.md`).
+A new variable enters with a safe default (`${VAR:-default}`) or with an explicit notice to the
+server owner and the list of what to configure; `.env.example` and `docs/deploy-<paas>.md`
+change in the same commit.
+
+## Backend Dockerfile (`docker/api.Dockerfile`)
 
 ```dockerfile
 FROM python:3.12-slim
@@ -34,7 +44,7 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/usr/local
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
-# Camada de dependencias, invalidada so quando o lock muda.
+# Dependency layer, invalidated only when the lock changes.
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY api/ ./api/
@@ -45,17 +55,17 @@ COPY docker/entrypoint-api.sh /usr/local/bin/entrypoint-api
 RUN uv sync --frozen --no-dev
 EXPOSE 8000
 ENTRYPOINT ["entrypoint-api"]
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "api.core.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
 ```
 
-- `COPY` explícito por pasta (nada de `COPY . .`).
-- `--frozen --no-dev`: imagem reproduzível, sem ferramentas de teste.
+- Explicit `COPY` per folder (no `COPY . .`).
+- `--frozen --no-dev`: a reproducible image, without test tools.
 
 ## Entrypoint (`docker/entrypoint-api.sh`)
 
 ```sh
 #!/bin/sh
-# Migra antes de servir, se pedido: em PaaS com deploy automatico ninguem roda `alembic` na mao.
+# Migrate before serving, if asked: on a PaaS with automatic deploys nobody runs `alembic` by hand.
 set -e
 if [ "${MIGRAR_AO_SUBIR:-false}" = "true" ]; then
 	alembic upgrade head
@@ -63,11 +73,11 @@ fi
 exec "$@"
 ```
 
-## Dockerfile do front (`docker/web.Dockerfile`)
+## Frontend Dockerfile (`docker/web.Dockerfile`)
 
-Multi-stage: `node:22-alpine` com `npm ci --no-audit --no-fund` (camada só com
-`package*.json`) e `npm run build`; depois `caddy:2-alpine` com `/srv` + `Caddyfile`. Contexto
-= raiz do repo quando o front importa arquivo do back.
+Multi-stage: `node:22-alpine` with `npm ci --no-audit --no-fund` (a layer with only
+`package*.json`) and `npm run build`; then `caddy:2-alpine` with `/srv` + `Caddyfile`. Context =
+the repository root when the frontend imports a file from the backend.
 
 ```
 :80 {
@@ -80,29 +90,31 @@ Multi-stage: `node:22-alpine` com `npm ci --no-audit --no-fund` (camada só com
 }
 ```
 
-## Banco
+## Database
 
-- Imagem do Postgres **não muda de base libc** num volume existente (alpine/musl ↔
-  debian/glibc muda a ordenação de texto e corrompe índices em silêncio). Extensão nova
-  (pgvector) é compilada na mesma base (`docker/db.Dockerfile`).
-- Testes e CI usam a mesma versão maior do Postgres que produção.
+- The Postgres image **does not change its libc base** on an existing volume (alpine/musl ↔
+  debian/glibc changes text collation and corrupts indexes silently). A new extension
+  (pgvector) is compiled on the same base (`docker/db.Dockerfile`).
+- Tests and CI use the same Postgres major version as production.
 
 ## `.dockerignore` / `.gitignore`
 
-`.dockerignore`: `.git`, `.venv`, dados grandes, `web/node_modules`, `web/dist`,
-`**/__pycache__`, `.env`, `.env.*`, arquivos de credencial.
+`.dockerignore`: `.git`, `.venv`, large data, `web/node_modules`, `web/dist`,
+`**/__pycache__`, `.env`, `.env.*`, credential files.
 
-`.gitignore`: dados grandes (com comentário do tamanho), caches Python
+`.gitignore`: large data (with a comment of its size), Python caches
 (`.venv .mypy_cache .ruff_cache .pytest_cache __pycache__`), `node_modules`, `web/dist`,
-`.env`, `.env.*`, `!.env.example`, artefatos gerados (`openapi.json`).
+`.env`, `.env.*`, `!.env.example`, generated artifacts (`openapi.json`).
 
 ## `.env.example`
 
-Seções com cabeçalho `# --- nome (spec NN) ---`, cada variável com comentário do que é, unidade
-e o que acontece se vazia. Segredos com valor `troque-...` (que a config recusa em produção). No
-topo: "Copie para `.env` (que NAO vai para o git). Nenhum segredo tem valor padrão no código".
+Sections with a `# --- name (spec NN) ---` header, each variable with a comment of what it is,
+its unit and what happens if empty. Secrets with a `change-me-...` value (which the settings
+refuse in production). At the top: "Copy to `.env` (which does NOT go to git). No secret has a
+default value in the code".
 
 ## Deploy
 
-`docs/deploy-<paas>.md` passo a passo numerado: gerar segredos (`openssl rand -hex 32`),
-levar dados grandes ao host, configurar o PaaS, seed pelo terminal do contêiner, conferir.
+A numbered step-by-step `docs/deploy-<paas>.md`: generate secrets (`openssl rand -hex 32`), take
+large data to the host, configure the PaaS (with the list of environment variables), seed from
+the container terminal, check.

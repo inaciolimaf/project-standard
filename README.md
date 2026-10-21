@@ -1,39 +1,47 @@
-# padrao-de-projeto
+# project-standard
 
-Skill do [Claude Code](https://code.claude.com) com um padrão de engenharia para projetos
-**Python (FastAPI + uv) com front React (Vite + TypeScript)**, extraído de um projeto real:
+A [Claude Code](https://code.claude.com) skill with an engineering standard for
+**Python (FastAPI + uv) projects with a React (Vite + TypeScript) frontend**, extracted from a real
+project:
 
-- estrutura em monólito modular (núcleo, infra, módulos com interface pública, eventos entre módulos);
-- lint e tipos (ruff, mypy estrito, teto de 30 linhas por função e 300 por arquivo, eslint, prettier,
-  tsc), fronteiras com `import-linter`, SQL só pelo query builder;
-- pirâmide de testes (unidade, integração com Postgres real, dourados, Vitest com cobertura mínima,
-  Playwright com fluxos de verdade);
-- Docker, compose local e de produção (Coolify), Makefile e CI;
-- documentação do sistema (`docs/sistema/` + `CLAUDE.md`) atualizada a cada mudança, com garantia.
+- modular monolith structure (core, infra, modules with a public interface, events between
+  modules);
+- lint and types (ruff, strict mypy, cap of 30 lines per function and 300 per file, eslint,
+  prettier, tsc), boundaries with `import-linter`, SQL only through the query builder;
+- test pyramid (unit, integration with a real Postgres, golden, Vitest with minimum coverage,
+  Playwright with real flows);
+- Docker, local and production compose (Coolify), Makefile and CI;
+- system documentation (`docs/system/` + `CLAUDE.md`) updated with every change, with a
+  guarantee;
+- code in English, product in its user's language, with a glossary between the two.
 
-O ponto de entrada é o [`SKILL.md`](SKILL.md); os detalhes estão em [`referencias/`](referencias/)
-e os arquivos prontos para copiar em [`modelos/`](modelos/).
+The entry point is [`SKILL.md`](SKILL.md); the details are in [`references/`](references/) and the
+files ready to copy in [`templates/`](templates/).
 
-## Instalar
+## Install
 
-Para todos os seus projetos (skill pessoal):
+For all your projects (personal skill):
 
 ```bash
-git clone https://github.com/inaciolimaf/padrao-de-projeto.git ~/.claude/skills/padrao-de-projeto
+git clone https://github.com/inaciolimaf/project-standard.git ~/.claude/skills/project-standard
 ```
 
-Só para um projeto (vai junto no repositório dele):
+For a single project (it goes along in that project's repository):
 
 ```bash
 mkdir -p .claude/skills
-git clone https://github.com/inaciolimaf/padrao-de-projeto.git .claude/skills/padrao-de-projeto
-rm -rf .claude/skills/padrao-de-projeto/.git
+git clone https://github.com/inaciolimaf/project-standard.git .claude/skills/project-standard
+rm -rf .claude/skills/project-standard/.git
 ```
 
-Atualizar a pessoal: `git -C ~/.claude/skills/padrao-de-projeto pull`.
+Update the personal one: `git -C ~/.claude/skills/project-standard pull`.
 
-## Usar
+The repository used to be called `padrao-de-projeto`; GitHub redirects the old URL. If you cloned
+it under the old name, move the folder so the skill is found by its new name:
+`mv ~/.claude/skills/padrao-de-projeto ~/.claude/skills/project-standard`.
 
-No Claude Code, peça algo como "aplica o padrão de projeto neste repositório" ou chame
-`/padrao-de-projeto`. A skill começa auditando o projeto e mostra o que está, o que falta e o que
-diverge antes de mudar qualquer coisa.
+## Use
+
+In Claude Code, ask something like "apply the project standard to this repository" (or, in
+Portuguese, "aplica o padrão") or call `/project-standard`. The skill starts by auditing the
+project and shows what is present, what is missing and what diverges before changing anything.

@@ -1,103 +1,136 @@
-# Config, erros, log, LLM
+# Settings, errors, logging, LLM
 
-## Configuração (`api/config.py`)
+## Settings (`api/core/config.py`)
 
-- Uma `Configuracao(BaseSettings)` com `env_file=".env"`, `extra="ignore"`, `frozen=True`.
-  Acesso só por `configuracao()` (`@lru_cache`), limpo nos testes.
-- `ambiente: Literal["local", "producao", "teste"]`.
-- Segredos são `SecretStr` **sem padrão**. Validador de modelo: em `producao`, recusa segredo
-  ausente, com menos de 32 bytes, igual a um valor de `VALORES_DE_EXEMPLO` (os do
-  `.env.example`) ou dois segredos iguais — levanta `ErroDeConfiguracao` antes de abrir porta.
-- Números com `Field(ge=...)`; caminhos como `Path` relativos a `RAIZ_DO_REPO`.
-- Comentário `#:` acima de cada campo não óbvio (o que é, o que acontece se vazio).
-- Garantia: teste de `Configuracao` com `AMBIENTE=producao` e cada segredo faltando/curto/de
-  exemplo.
+- A single `Settings(BaseSettings)` with `env_file=".env"`, `extra="ignore"`, `frozen=True`.
+  Access only through `settings()` (`@lru_cache`), cleared in tests.
+- `environment: Literal["local", "production", "test"]` (in Crivo the variable is `AMBIENTE`
+  with the values `local`, `producao`, `teste`).
+- Secrets are `SecretStr` **with no default**. Model validator: in production, refuses a secret
+  that is missing, shorter than 32 bytes, equal to a value in `EXAMPLE_VALUES` (the ones in
+  `.env.example`) or two equal secrets — raises `SettingsError` before opening a port.
+- Numbers with `Field(ge=...)`; paths as `Path` relative to `REPO_ROOT`.
+- A `#:` comment above each non-obvious field (what it is, what happens if empty).
+- Guarantee: a `Settings` test with production on and each secret missing/short/example.
 
-## Unidade de trabalho e posse (`api/nucleo/db.py`)
+### Environment variables are a contract with the server
 
-- A dependência da sessão (`SessaoBd`) é a **unidade de trabalho**: abre a transação, comita no
-  fim da requisição se deu certo, desfaz se deu erro. Router e service não chamam `commit()`
-  (service usa `flush()` quando precisa do id). Tarefa de fundo e CLI usam
-  `async with unidade_de_trabalho() as sessao:`.
-- **Armadilha do FastAPI**: com o escopo padrão, o código depois do `yield` de uma dependência
-  roda **depois** que a resposta já saiu — um commit que falha ali chega ao cliente como 200 e
-  nada foi gravado. Use `SessaoBd = Annotated[AsyncSession, Depends(sessao, scope="function")]`
-  (FastAPI ≥ 0.121): a dependência fecha antes da resposta e a falha vira 500.
-- A sessão depende de uma `fabrica()` separada (`Depends(fabrica)`): o teste troca só a fábrica
-  pela da transação dele (`app.dependency_overrides[fabrica] = lambda: fabrica_do_teste`) e a
-  lógica de commit/rollback da unidade de trabalho continua sendo a real.
-- **Gravação que precisa sobreviver ao erro da própria requisição** (registrar a tentativa de
-  login que falhou, contar a falha de uma figura): a rota **devolve**
-  `resposta_de_erro(request, erro)` (o mesmo `problem+json` do manipulador único) em vez de
-  levantar, e a unidade de trabalho comita normalmente. Levantar desfaria a gravação.
-- **Tarefa de fundo que grava em etapas** (e o custo de uma chamada de modelo que precisa ficar
-  mesmo se a etapa falhar): recebe a **fábrica** de sessão como parâmetro, não chama
-  `unidade_de_trabalho()` fixo. Em produção é a fábrica real; no teste é a da transação do teste,
-  onde cada sessão vira um savepoint próprio — o commit do custo fica, o rollback da etapa desfaz
-  só a etapa. Uma `unidade_de_trabalho()` fixa abre outra conexão, que no teste não enxerga nada.
-- `obter_do_usuario(sessao, Modelo, id, usuario, o_que=...)`: busca + confere a posse + 404 igual
-  para inexistente e de outro usuário. É o único jeito de carregar registro do usuário pelo id.
-- Testes da unidade de trabalho: requisição que levanta erro depois de gravar não deixa nada no
-  banco; uma fábrica falsa cujo `commit()` levanta prova que a resposta é 500, não 200 (e o teste
-  falha se alguém tirar o `scope="function"`).
-- Garantia da regra: `tests/unidade/test_arquitetura.py` percorre o `ast` de `api/` e falha se
-  `commit()` aparecer fora de `nucleo/db.py` (com lista temporária enquanto a migração anda).
+**An environment variable configured by hand on the server is never renamed or removed.** The
+server keeps the old name; a renamed variable makes the next deploy read nothing — with a
+default, the system starts wrong without a single error; without one, it does not start and
+nobody knows why.
 
-## SQL: só pelo query builder
+- The **field** follows the code's language; the **variable** keeps its name, read by alias:
 
-- Toda consulta é montada com o SQLAlchemy (ORM ou Core): `select`, `insert`, `update`, `delete`,
+  ```python
+  jwt_secret: SecretStr = Field(validation_alias="SEGREDO_JWT")
+  migrate_on_start: bool = Field(default=False, validation_alias="MIGRAR_AO_SUBIR")
+  ```
+
+  (`AliasChoices("OLD", "NEW")` when a rename was agreed and both must work during the change.)
+- A **new** variable enters with a safe default (the system keeps working as before without it)
+  or, if it has none (a new secret), with an explicit notice to the server owner in the same
+  delivery: the list of what to configure — name, value or how to generate it
+  (`openssl rand -hex 32`), which service — and the docs' deploy page updated.
+- Removing a variable the code no longer reads is harmless for the deploy, but it is the owner's
+  call: say so, do not delete it from the server's panel yourself.
+- A new project names its variables in English from the start (`ENVIRONMENT`,
+  `MIGRATE_ON_START`); the rule protects what already exists.
+- Test isolation lists every variable `Settings` reads (by their real names, aliases included).
+
+## Unit of work and ownership (`api/core/db.py`)
+
+- The session dependency (`DbSession`) is the **unit of work**: opens the transaction, commits
+  at the end of the request if it succeeded, rolls back on error. Router and service do not call
+  `commit()` (a service uses `flush()` when it needs the id). Background tasks and the CLI use
+  `async with unit_of_work() as session:`.
+- **FastAPI pitfall**: with the default scope, the code after a dependency's `yield` runs
+  **after** the response has left — a commit that fails there reaches the client as 200 and
+  nothing was saved. Use `DbSession = Annotated[AsyncSession, Depends(session, scope="function")]`
+  (FastAPI ≥ 0.121): the dependency closes before the response and the failure becomes a 500.
+- The session depends on a separate `factory()` (`Depends(factory)`): the test swaps only the
+  factory for its own transaction's (`app.dependency_overrides[factory] = lambda: test_factory`)
+  and the unit of work's commit/rollback logic stays the real one.
+- **A write that must survive its own request's error** (recording the failed login attempt,
+  counting a figure's failure): the route **returns** `error_response(request, error)` (the same
+  `problem+json` as the single handler) instead of raising, and the unit of work commits
+  normally. Raising would undo the write.
+- **A background task that writes in stages** (and the cost of a model call that must stay even
+  if the stage fails): receives the session **factory** as a parameter, does not call a fixed
+  `unit_of_work()`. In production it is the real factory; in tests it is the test transaction's,
+  where each session becomes its own savepoint — the cost's commit stays, the stage's rollback
+  undoes only the stage. A fixed `unit_of_work()` opens another connection, which in a test sees
+  nothing.
+- `get_owned(session, Model, id, user, what=...)`: fetch + ownership check + the same 404 for
+  nonexistent and another user's. It is the only way to load a user's record by id.
+- Unit of work tests: a request that raises after writing leaves nothing in the database; a
+  fake factory whose `commit()` raises proves the response is 500, not 200 (and the test fails if
+  someone removes `scope="function"`).
+- Guarantee of the rule: `tests/unit/test_architecture.py` walks the `ast` of `api/` and fails if
+  `commit()` appears outside `core/db.py` (with a temporary list while the migration is ongoing).
+
+## SQL: only through the query builder
+
+- Every query is built with SQLAlchemy (ORM or Core): `select`, `insert`, `update`, `delete`,
   `func`, `literal_column`, `aliased`, `.cte(recursive=True)`, `insert(...).from_select(...)`,
-  `postgresql.insert(...).on_conflict_do_update(...)`, trigrama com `func.similarity`/`.op("%")`,
-  `select(func.set_config(...))`. Vale também fora da sessão: com `asyncpg` cru (carga em massa,
-  índice em memória) o builder é compilado para o dialeto e executado pela mesma conexão; no SQLite
-  de um arquivo de dados, Core com engine síncrona.
-- Proibido: `text("...")` e string que começa com `SELECT/INSERT/UPDATE/DELETE/WITH/...`.
-  Exceção só onde o builder não alcança — `EXPLAIN` em volta de uma consulta já montada pelo
-  builder, `COPY` em massa (`copy_records_to_table`) — e cada uma fica listada, com o motivo, em
-  `SQL_LIBERADO` do teste de arquitetura. DDL é das migrations (`op.*`).
-- Caminho quente (milhões de linhas, uma consulta por questão aberta): compile o builder uma vez e
-  reaproveite o SQL gerado; meça antes e depois. O SQL continua vindo do builder.
-- Valor sempre por parâmetro; o builder já garante.
+  `postgresql.insert(...).on_conflict_do_update(...)`, trigram with `func.similarity`/`.op("%")`,
+  `select(func.set_config(...))`. It also applies outside the session: with raw `asyncpg` (bulk
+  load, in-memory index) the builder is compiled to the dialect and executed on the same
+  connection; on a data file's SQLite, Core with a synchronous engine.
+- Forbidden: `text("...")` and strings that start with `SELECT/INSERT/UPDATE/DELETE/WITH/...`.
+  Exceptions only where the builder cannot reach — `EXPLAIN` around a query already built by the
+  builder, bulk `COPY` (`copy_records_to_table`) — and each one is listed, with the reason, in
+  the architecture test's `ALLOWED_SQL`. DDL belongs to migrations (`op.*`).
+- Hot path (millions of rows, one query per opened question): compile the builder once and reuse
+  the generated SQL; measure before and after. The SQL still comes from the builder.
+- Values always by parameter; the builder already guarantees it.
 
 ## Login
 
-- **Limite de tentativas**: por e-mail e por IP, com janela (ex.: 5 falhas em 15 min → `429`
-  com `problem+json`, `Retry-After` e `detail` dizendo quando tentar de novo). Sucesso zera o
-  contador do e-mail. O contador mora no banco (ou num cache compartilhado), não na memória do
-  processo, para valer com mais de um worker.
-- A mesma mensagem para e-mail inexistente e senha errada (não revela quem tem conta).
-- Teste: a sexta tentativa errada recebe 429 mesmo com a senha certa; depois da janela, entra.
+- **Attempt limit**: per e-mail and per IP, with a window (e.g. 5 failures in 15 min → `429`
+  with `problem+json`, `Retry-After` and a `detail` saying when to try again). Success resets
+  the e-mail's counter. The counter lives in the database (or a shared cache), not in process
+  memory, so it holds with more than one worker.
+- The same message for a nonexistent e-mail and a wrong password (it does not reveal who has an
+  account).
+- Test: the sixth wrong attempt gets 429 even with the right password; after the window, it gets
+  in.
 
-## Erros (`api/erros.py`)
+## Errors (`api/core/errors.py`)
 
-- Formato único: `application/problem+json` (RFC 9457: `type`, `title`, `status`, `detail`).
-- `ErroDeAplicacao(status_code, titulo, detalhe, tipo, extras)` recusa `detalhe` vazio
-  (`ValueError`) — todo 409/422 explica para o usuário o que fazer.
-- `tipo` como slug `dominio/motivo` (ex.: `edital/sem-modelo`).
-- Um manipulador registra tudo: `ErroDeAplicacao`, `HTTPException`, `RequestValidationError`.
-- Front: `lerProblema()` único em `client.ts`, `ErroApi` com `title`/`detail`.
+- A single format: `application/problem+json` (RFC 9457: `type`, `title`, `status`, `detail`).
+- `AppError(status_code, title, detail, type, extras)` refuses an empty `detail`
+  (`ValueError`) — every 409/422 explains to the user what to do. `title` and `detail` are
+  product text (in the product's language); `type` is code (English).
+- `type` as a `domain/reason` slug (e.g. `notice/no-model`).
+- One handler registers everything: `AppError`, `HTTPException`, `RequestValidationError`.
+- Frontend: a single `readProblem()` in `client.ts`, `ApiError` with `title`/`detail`.
 
-## Log (`api/log.py`)
+## Logging (`api/core/log.py`)
 
-- structlog: `JSONRenderer` em produção, `ConsoleRenderer` fora dela, timestamp ISO.
-- Middleware gera/propaga `x-request-id` e vincula `request_id`, `rota`, `metodo` ao contexto.
-- Evento com nome `dominio.acao` (`api.iniciando`, `editais.recuperacao_falhou`) e campos
-  nomeados; texto de erro truncado (`str(erro)[:300]`).
+- structlog: `JSONRenderer` in production, `ConsoleRenderer` elsewhere, ISO timestamp.
+- A middleware generates/propagates `x-request-id` and binds `request_id`, `route`, `method` to
+  the context.
+- Events named `domain.action` (`api.starting`, `notices.recovery_failed`) with named fields;
+  error text truncated (`str(error)[:300]`).
 
-## App (`api/main.py`)
+## App (`api/core/main.py`)
 
-- `criar_app()` é fábrica (testes e `openapi.py` usam).
-- Rotas de domínio sob `/api/v1`, `/health` na raiz; docs em `/api/docs`.
-- Laços de fundo no lifespan só fora de `AMBIENTE=teste`; tarefa que ficou no meio quando o
-  processo caiu é recuperada na subida (vira estado de erro, não fica "rodando" para sempre).
+- `create_app()` is a factory (tests and `openapi.py` use it).
+- Domain routes under `/api/v1`, `/health` at the root; docs at `/api/docs`.
+- Background loops in the lifespan only outside the test environment; a task left halfway when
+  the process died is recovered on startup (it becomes an error state, it does not stay
+  "running" forever).
 
-## LLM / serviço externo pago
+## LLM / paid external service
 
-- Interface `ClienteLLM` em `api/llm/base.py`; implementação real e `falso.py` determinístico.
-- Sem chave configurada, as rotas que dependem respondem `503` com `problem+json`; o resto
-  funciona.
-- Saída estruturada validada por contrato pydantic (`contratos.py`); prompts em `prompts.py`.
-- Custo de cada chamada registrado no banco; teto diário (`LIMITE_CUSTO_DIARIO_USD`, zero
-  desliga) corta antes de chamar.
-- Modelo por variável (`MODELO_<DOMINIO>`), vazio cai no padrão do código.
-- Nada que gaste dinheiro começa sozinho: cada etapa nasce de uma ação do usuário.
+- An `LLMClient` interface in `api/infra/llm/base.py`; a real implementation and a deterministic
+  `fake.py`.
+- Without a configured key, the routes that depend on it answer `503` with `problem+json`; the
+  rest works.
+- Structured output validated by a pydantic contract (`contracts.py`); prompts in `prompts.py`
+  (in the language of the documents they talk about).
+- The cost of each call recorded in the database; a daily cap (in Crivo
+  `LIMITE_CUSTO_DIARIO_USD`, zero turns it off) cuts before calling.
+- Model per variable (in Crivo `MODELO_<DOMINIO>`), empty falls back to the code's default.
+- Nothing that spends money starts on its own: each stage is born from a user action.

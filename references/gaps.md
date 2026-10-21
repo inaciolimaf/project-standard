@@ -1,13 +1,14 @@
-# Lacunas conhecidas
+# Known gaps
 
-O que o padrão ainda não cobre ou cobre de forma inconsistente, visto no Crivo em 2026-10-20.
-Quando uma for resolvida, mova a decisão para a referência certa e apague daqui.
+What the standard does not cover yet, or covers inconsistently, as seen in Crivo on 2026-10-20.
+When one is resolved, move the decision into the right reference and delete it from here.
 
-| # | Lacuna | Onde | Sugestão |
+| # | Gap | Where | Suggestion |
 |---|---|---|---|
-| 3 | Sem hook de pre-commit | raiz | `pre-commit` (ou `lefthook`) com ruff, tamanho de função, eslint |
-| 5 | Sem cobertura mínima (`pytest-cov` instalado, sem `fail_under`) | `pyproject.toml` | `--cov` no CI com `fail_under` |
-| 7 | `ghcr.io/astral-sh/uv:latest` sem versão fixa | `docker/api.Dockerfile` | fixar a versão do uv |
-| 8 | Testes Python fora do mypy | `pyproject.toml` | decidir: incluir `tests` com overrides ou manter fora de propósito |
-| 9 | Marker `integracao` existe mas não há alvo para rodar só unidade | `Makefile` | `teste-unidade: pytest -m "not integracao"` |
-| 11 | Sem auditoria de dependências (`pip-audit`, `npm audit`) nem Dependabot | CI | job semanal |
+| 3 | No pre-commit hook | root | `pre-commit` (or `lefthook`) with ruff, function size, eslint |
+| 5 | No minimum coverage (`pytest-cov` installed, no `fail_under`) | `pyproject.toml` | `--cov` in CI with `fail_under` |
+| 7 | `ghcr.io/astral-sh/uv:latest` without a pinned version | `docker/api.Dockerfile` | pin the uv version |
+| 8 | Python tests outside mypy | `pyproject.toml` | decide: include `tests` with overrides or keep them out on purpose |
+| 9 | The `integration` marker exists but there is no target to run only unit tests | `Makefile` | a unit-only target: `pytest -m "not integration"` |
+| 11 | No dependency audit (`pip-audit`, `npm audit`) nor Dependabot | CI | weekly job |
+| 12 | Crivo's code is still in Portuguese (identifiers, tables, API, docs) | whole repository | convert following `SKILL.md` → step 6; the glossary is already in `docs/glossary.md` |

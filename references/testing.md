@@ -1,62 +1,63 @@
-# Pirâmide de testes
+# Test pyramid
 
-Números do Crivo (out/2026) para calibrar a proporção: ~200 de unidade, ~170 de integração,
-Vitest com cobertura de 60% e telas inteiras testadas, Playwright com fluxos de verdade e
-smoke de todas as rotas.
+Crivo's numbers (Oct/2026) to calibrate the proportion: ~200 unit, ~170 integration, Vitest with
+60% coverage and whole screens tested, Playwright with real flows and a smoke of every route.
 
 ```
-          ┌──────────────┐  e2e (Playwright, build de produção, API real)
-          │ fluxos, rotas │  — fluxos clicando (login, responder, simulado, cartão);
-          │ celular       │    smoke de TODAS as rotas; 390×844 sem overflow
-        ┌─┴──────────────┴─┐  front (Vitest + Testing Library, jsdom) — cobertura ≥ 60%
-        │ telas, componentes│ — telas inteiras com router real e API falsa, lib/ pura,
-        │ lib, client       │   contrato de erro
-      ┌─┴───────────────────┴─┐  integração (pytest + Postgres real)
-      │ rotas HTTP, ingestão,  │ — httpx ASGITransport, transação com rollback
-      │ migrations             │
-    ┌─┴───────────────────────┴─┐  unidade (pytest, sem I/O)
-    │ regras puras, parsers,      │ — rápidos, maioria
-    │ contratos, dourados         │
-    └─────────────────────────────┘
+          ┌──────────────┐  e2e (Playwright, production build, real API)
+          │ flows, routes │  — flows clicking (login, answer, mock exam, flashcard);
+          │ mobile        │    smoke of ALL routes; 390×844 without overflow
+        ┌─┴──────────────┴─┐  frontend (Vitest + Testing Library, jsdom) — coverage ≥ 60%
+        │ screens, components│ — whole screens with the real router and a fake API, pure lib/,
+        │ lib, client        │   error contract
+      ┌─┴────────────────────┴┐  integration (pytest + real Postgres)
+      │ HTTP routes, ingestion, │ — httpx ASGITransport, transaction with rollback
+      │ migrations              │
+    ┌─┴─────────────────────────┴┐  unit (pytest, no I/O)
+    │ pure rules, parsers,         │ — fast, the majority
+    │ contracts, golden            │
+    └──────────────────────────────┘
 ```
 
-## Unidade — `tests/unidade/test_<assunto>.py`
+## Unit — `tests/unit/test_<subject>.py`
 
-- Sem banco, sem rede, sem disco fora de `tmp_path`.
-- Funções puras de domínio, parsers, sanitização, agenda, cálculo de custo, config.
-- Serviço externo entra pela implementação falsa (`api/llm/falso.py`: roteiro em ordem,
-  resposta por etapa, ou função do pedido; sem correspondência devolve algo que quebra o
-  contrato, para o teste falhar alto).
+- No database, no network, no disk outside `tmp_path`.
+- Pure domain functions, parsers, sanitizing, scheduling, cost calculation, settings.
+- An external service comes in through its fake implementation (`api/infra/llm/fake.py`: a
+  script in order, an answer per stage, or a function of the request; with no match it returns
+  something that breaks the contract, so the test fails loudly).
 
-## Integração — `tests/integracao/test_<dominio>.py`
+## Integration — `tests/integration/test_<domain>.py`
 
-- Marker `integracao`. Postgres de `DATABASE_URL_TESTE` (o do compose, banco `<app>_teste`,
-  criado por `make db-teste`) ou, sem ela, `testcontainers`; sem nenhum dos dois, `pytest.skip`
-  com motivo — nunca falha por falta de infraestrutura.
-- `esquema_migrado` (escopo de sessão): `alembic upgrade head` uma vez, `downgrade base` no
-  fim — **as migrations são testadas nos dois sentidos** a cada rodada.
-- `contexto_de_banco`: uma transação por teste, `join_transaction_mode="create_savepoint"`,
-  rollback no fim. O código pode dar `commit` à vontade.
-- `cliente`: `criar_app()` com `dependency_overrides` da sessão + `httpx.AsyncClient(
-  transport=ASGITransport(app))`. Fixtures prontas: `admin`, `aluno`, `cliente_admin`,
-  `cliente_aluno`, e um conjunto de dados falso ingerido (`tests/acervo_falso.py`).
-- Testa rota HTTP de ponta a ponta: status, corpo, `problem+json` com `detail` não vazio.
+- Marker `integration`. Postgres from the test database URL variable (in Crivo
+  `DATABASE_URL_TESTE`: the compose one, database `<app>_teste`, created by `make db-teste`) or,
+  without it, `testcontainers`; with neither, `pytest.skip` with a reason — it never fails for
+  lack of infrastructure.
+- `migrated_schema` (session scope): `alembic upgrade head` once, `downgrade base` at the end —
+  **migrations are tested in both directions** on every run.
+- `db_context`: one transaction per test, `join_transaction_mode="create_savepoint"`, rollback
+  at the end. The code may `commit` freely.
+- `client`: `create_app()` with the session's `dependency_overrides` + `httpx.AsyncClient(
+  transport=ASGITransport(app))`. Ready fixtures: `admin`, `student`, `admin_client`,
+  `student_client`, and an ingested fake data set (`tests/fake_corpus.py`).
+- Tests HTTP routes end to end: status, body, `problem+json` with a non-empty `detail`.
 
-## Dourados — `tests/dourados/`
+## Golden — `tests/golden/`
 
-Casos reais (arquivos do mundo: edital, questão do acervo, legenda) e respostas reais do modelo
-gravadas por um comando da CLI (`crivo <dominio> gravar-dourado`, gasta centavos). O teste
-confere que o código e o contrato aceitam o caso real. Teste que depende de dourado ausente faz
-`skipif` com o comando que o gera na razão.
+Real cases (files from the world: a notice, a corpus question, a caption) and real model answers
+recorded by a CLI command (in Crivo `crivo <dominio> gravar-dourado`, it costs cents). The test
+checks that the code and the contract accept the real case. A test that depends on a missing
+golden file uses `skipif` with the command that generates it in the reason.
 
-## Isolamento (fixture autouse em `tests/conftest.py`)
+## Isolation (autouse fixture in `tests/conftest.py`)
 
-- Apaga do ambiente toda variável que a `Configuracao` lê (lista explícita).
-- `AMBIENTE=teste`, `DATABASE_URL` inalcançável (porta 1) por padrão — teste que não pediu
-  banco não acha um sem querer.
-- Segredos de teste com 32+ bytes; `env_file=None` (o `.env` da máquina nunca entra).
-- Limpa todos os singletons `lru_cache` antes e depois.
-- Em `AMBIENTE=teste` o lifespan não sobe laços de fundo.
+- Removes from the environment every variable `Settings` reads (an explicit list, with the
+  variables' real names).
+- Test environment, `DATABASE_URL` unreachable (port 1) by default — a test that did not ask for
+  a database does not find one by accident.
+- Test secrets with 32+ bytes; `env_file=None` (the machine's `.env` never gets in).
+- Clears every `lru_cache` singleton before and after.
+- In the test environment the lifespan does not start background loops.
 
 ## pytest
 
@@ -66,79 +67,84 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["error::DeprecationWarning:api.*", "error::DeprecationWarning:pipeline.*"]
-markers = ["integracao: precisa de Postgres (DATABASE_URL_TESTE ou testcontainers)"]
+markers = ["integration: needs Postgres (test database URL or testcontainers)"]
 ```
 
-## Front — Vitest
+## Frontend — Vitest
 
 - `web/tests/*.test.ts(x)`, `environment: "jsdom"`, `globals: false`, `css: false`,
-  `setup.ts` com `jest-dom/vitest` e `cleanup()` no `afterEach`.
-- **Cobertura mínima de 60%** (linhas, statements, funções e branches), `@vitest/coverage-v8`
-  no `vite.config.ts`, `npm run cobertura` / `make web-cobertura`, no CI. Fica fora só o que é
-  gerado (`src/api/tipos.ts`) e o `main.tsx`. Mais baixo que o back porque tela tem muito JSX
-  sem lógica; mais alto que zero porque sete de dez bugs do front que motivaram o padrão não
-  tinham teste.
-- Três tipos de teste, do mais barato ao mais caro:
-  1. **`lib/` pura** (formatação, filtro na URL, storage, atalhos, tema): todas, com os casos de
-     borda. São os testes mais baratos que existem.
-  2. **Componente isolado**: `render(<X .../>)` + `userEvent`; para componente que usa
+  `setup.ts` with `jest-dom/vitest` and `cleanup()` in `afterEach`.
+- **Minimum coverage of 60%** (lines, statements, functions and branches),
+  `@vitest/coverage-v8` in `vite.config.ts`, a coverage npm script and Makefile target, in CI.
+  Only what is generated (`src/api/types.ts`) and `main.tsx` stay out. Lower than the backend
+  because screens have a lot of JSX without logic; higher than zero because seven out of ten
+  frontend bugs that motivated the standard had no test.
+- Three kinds of test, from cheapest to most expensive:
+  1. **Pure `lib/`** (formatting, URL filter, storage, shortcuts, theme): all of it, with the
+     edge cases. These are the cheapest tests there are.
+  2. **Isolated component**: `render(<X .../>)` + `userEvent`; for a component that uses
      `Link`/`useNavigate`, `vi.mock("@tanstack/react-router")`.
-  3. **Tela inteira**: `tests/auxiliar/tela.tsx` com o router de verdade, memória como
-     histórico e a API falsa:
+  3. **Whole screen**: `tests/helpers/screen.tsx` with the real router, memory history and the
+     fake API:
      ```ts
-     const api = apiFalsa({ "GET /questoes": { itens: [], total: 0 } });   // METODO /caminho sem /api/v1
-     const { usuario } = await renderizarTela("/marcadas");
-     expect(api.chamadas("GET /questoes")[0]?.query.get("marcadas")).toBe("true");
+     const api = fakeApi({ "GET /questions": { items: [], total: 0 } });   // METHOD /path without /api/v1
+     const { user } = await renderScreen("/marcadas");                      // the screen URL stays in Portuguese
+     expect(api.calls("GET /questions")[0]?.query.get("bookmarked")).toBe("true");
      ```
-     `apiFalsa` troca o `fetch`, já responde o que o shell pede (usuário logado, saldo...) e
-     devolve 404 em `problem+json` com o caminho no `detail` para rota não declarada — o teste
-     falha dizendo o que faltou. `renderizarTela` completa o que o jsdom não tem (`matchMedia`,
-     `scrollTo`). Dados falsos comuns em `tests/auxiliar/dados.ts`; os de uma área em
-     `tests/auxiliar/dados-<area>.ts`. `vi.unstubAllGlobals()` no `afterEach`.
-- Animação e tempo (`requestAnimationFrame`, debounce, cronômetro) com relógio falso
+     `fakeApi` swaps `fetch`, already answers what the shell asks for (logged-in user,
+     balance...) and returns a 404 in `problem+json` with the path in the `detail` for an
+     undeclared route — the test fails saying what was missing. `renderScreen` fills in what
+     jsdom lacks (`matchMedia`, `scrollTo`). Common fake data in `tests/helpers/data.ts`; an
+     area's in `tests/helpers/data-<area>.ts`. `vi.unstubAllGlobals()` in `afterEach`.
+- Animation and time (`requestAnimationFrame`, debounce, timer) with a fake clock
   (`vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] })`
-  + `vi.advanceTimersByTime`), nunca `waitFor` esperando o tempo real: com a máquina carregada
-  (CI, agentes em paralelo) o teste falha sem bug.
-- O tempo de espera dos testes de tela fica num lugar só: `configure({ asyncUtilTimeout: 4000 })`
-  no `setup.ts` e `testTimeout` no `vite.config.ts` — não em cada arquivo.
-- **Toda tela com lógica tem teste de tela**: cronômetro (`vi.useFakeTimers`), autosave,
-  confirmação, atalhos de teclado, formulário com erro da API. Teste o que o usuário vê e faz,
-  não detalhe de implementação.
-- Obrigatório também: `client.ts` (erro 409 falso vira exceção com `title`/`detail` e a tela
-  mostra o `detail`; refresh no 401), componentes de filtro, renderização de HTML.
-- **Correção no front sem teste que a reproduza não é aceita.** Tela nova nasce com teste.
+  + `vi.advanceTimersByTime`), never `waitFor` waiting for real time: with a loaded machine (CI,
+  agents in parallel) the test fails without a bug.
+- The screen tests' wait time lives in one place: `configure({ asyncUtilTimeout: 4000 })` in
+  `setup.ts` and `testTimeout` in `vite.config.ts` — not in each file.
+- **Every screen with logic has a screen test**: timer (`vi.useFakeTimers`), autosave,
+  confirmation, keyboard shortcuts, a form with an API error. Test what the user sees and does,
+  not implementation details.
+- Also mandatory: `client.ts` (a fake 409 becomes an exception with `title`/`detail` and the
+  screen shows the `detail`; refresh on 401), filter components, HTML rendering.
+- **A frontend fix without a test that reproduces it is not accepted.** A new screen is born with
+  a test.
 
 ## E2E — Playwright
 
-- Roda no **build de produção** (`vite preview` na 4173) contra a API real (`API_URL`), login
-  pela API com `E2E_EMAIL`/`E2E_SENHA`. Chrome do sistema (`channel: "chrome"`).
-- Projeto `rotas`: abre cada rota (lista em `e2e/auxiliar.ts`) com ids falsos; falha em
-  `pageerror` com "Invariant" ou na tela de erro genérica; `#root` não vazio.
-- Projeto `celular`: mesmas rotas a 390×844 com toque, captura em `capturas/<rota>.png`,
-  falha se `scrollWidth > innerWidth`. No CI as capturas viram artefato.
-- **A lista de rotas não pode ficar para trás**: um teste compara as rotas do router com a
-  lista do e2e e falha dizendo qual falta (ou a lista é gerada do router). Lista mantida só à
-  mão ficou sem as telas mais novas.
-- Projeto `fluxos`: **fluxos de verdade, clicando como o usuário**, um arquivo por fluxo em
-  `e2e/fluxos/`. O mínimo: login pelo formulário (e senha errada mostra a mensagem da API) e
-  logout; o caminho principal de cada área (no Crivo: abrir e responder uma questão, treino,
-  simulado do início ao resultado, revisar cartão pelo teclado). Independentes dos dados exatos:
-  pegam o primeiro item disponível, criam pela API o que precisam e apagam no fim. Rodam
-  contra a API local e no CI contra dados falsos.
-- **Funcionalidade nova entra no e2e no mesmo commit**: a rota na lista (o teste acima cobra)
-  e, se tem fluxo principal novo, um arquivo em `e2e/fluxos/`.
-- No CI, a API é esperada com laço de `curl` em `/health` com tempo limite (nunca `sleep N`),
-  imprimindo o log da API se não subir.
+- Runs on the **production build** (`vite preview` on 4173) against the real API (`API_URL`),
+  logging in through the API with credentials from variables (in Crivo `E2E_EMAIL`/`E2E_SENHA`).
+  System Chrome (`channel: "chrome"`).
+- Project `routes`: opens each route (list in `e2e/helpers.ts`) with fake ids; fails on a
+  `pageerror` with "Invariant" or on the generic error screen; `#root` not empty.
+- Project `mobile`: the same routes at 390×844 with touch, a capture in `captures/<route>.png`,
+  fails if `scrollWidth > innerWidth`. In CI the captures become an artifact.
+- **The route list cannot fall behind**: a test compares the router's routes with the e2e list
+  and fails saying which one is missing (or the list is generated from the router). A list kept
+  only by hand was missing the newest screens.
+- Project `flows`: **real flows, clicking like the user**, one file per flow in `e2e/flows/`. The
+  minimum: login through the form (and a wrong password shows the API's message) and logout; the
+  main path of each area (in Crivo: open and answer a question, practice, a mock exam from start
+  to result, review a flashcard with the keyboard). Independent of exact data: they take the
+  first available item, create through the API what they need and delete it at the end. They run
+  against the local API and, in CI, against fake data.
+- **A new feature enters the e2e in the same commit**: the route in the list (the test above
+  enforces it) and, if it has a new main flow, a file in `e2e/flows/`.
+- In CI, the API is awaited with a `curl` loop on `/health` with a timeout (never `sleep N`),
+  printing the API log if it does not come up.
 
-## Teste de arquitetura
+(Crivo keeps its Playwright project names and the Makefile targets that call them — `make e2e`,
+`make celular`, `make e2e-fluxos` — because people type them.)
 
-`tests/unidade/test_arquitetura.py` guarda as regras de desenho que nenhum lint de terceiro
-cobre, lendo o `ast` do código: "só a unidade de trabalho chama `commit()`", "SQL só pelo query
-builder" (acusa `sqlalchemy.text` e string que começa com palavra-chave SQL, fora as docstrings;
-exceções em `SQL_LIBERADO` com motivo) e "pasta de módulo com no máximo 8 arquivos". Regra nova
-desse tipo entra aqui, com lista temporária e `ARQUITETURA_ESTRITA=1` para conferir o alvo.
+## Architecture test
 
-## No dia a dia
+`tests/unit/test_architecture.py` guards the design rules no third-party lint covers, reading the
+code's `ast`: "only the unit of work calls `commit()`", "SQL only through the query builder"
+(flags `sqlalchemy.text` and strings that start with an SQL keyword, docstrings excluded;
+exceptions in `ALLOWED_SQL` with a reason) and "a module folder has at most 8 files". A new rule
+of this kind goes here, with a temporary list and `ARCHITECTURE_STRICT=1` to check the target.
 
-Rode o teste da área mexida, não a suíte toda; o CI roda tudo. Se o CI quebrar, corrija em
-seguida.
+## Day to day
+
+Run the tests of the area you touched, not the whole suite; CI runs everything. If CI breaks, fix
+it right after.

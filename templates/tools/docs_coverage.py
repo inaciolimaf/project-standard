@@ -1,19 +1,19 @@
-"""Confere que `docs/sistema/` acompanha o codigo: nada sem documentar, nada citado que nao existe.
+"""Checks that `docs/system/` keeps up with the code: nothing undocumented, nothing cited that is gone.
 
-Duas verificacoes:
+Two checks:
 
-- **cobertura**: todo caminho casado por `exigir` (routers, services, pacotes, rotas do front) e
-  citado entre crases em algum arquivo da documentacao. Diretorio conta como citado se ele ou
-  qualquer arquivo dentro dele aparece;
-- **caminhos vivos**: todo caminho do repositorio citado entre crases existe, e todo
-  `tests/x.py::nome` aponta para um `def nome` no arquivo. Documentacao que fala de arquivo
-  apagado ou teste renomeado falha aqui.
+- **coverage**: every path matched by `require` (modules, packages, frontend routes) is cited
+  between backticks in some documentation file. A directory counts as cited if it or any file
+  inside it appears;
+- **live paths**: every repository path cited between backticks exists, and every
+  `tests/x.py::name` points to a `def name` in the file. Documentation that talks about a deleted
+  file or a renamed test fails here.
 
-Uso:
+Usage:
 
-    uv run python -m ferramentas.cobertura_da_documentacao
+    uv run python -m tools.docs_coverage
 
-Configuracao em `[tool.cobertura-da-documentacao]` do `pyproject.toml`. Sai com 1 se achar algo.
+Settings in `[tool.docs-coverage]` of `pyproject.toml`. Exits with 1 if it finds anything.
 """
 
 from __future__ import annotations
@@ -26,117 +26,116 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-CODIGO_SEM_DOC = "DOC001"
-CODIGO_CAMINHO_MORTO = "DOC002"
-RAIZ = Path(__file__).resolve().parent.parent
-TRECHO_ENTRE_CRASES = re.compile(r"`([^`\n]+)`")
-#: Nomes que nao sao codigo do projeto, mesmo casando com `exigir`.
-IGNORADOS = frozenset({"__init__.py", "__pycache__", "__main__.py"})
+UNDOCUMENTED = "DOC001"
+DEAD_PATH = "DOC002"
+ROOT = Path(__file__).resolve().parent.parent
+BACKTICKED = re.compile(r"`([^`\n]+)`")
+#: Names that are not project code, even when they match `require`.
+IGNORED = frozenset({"__init__.py", "__pycache__", "__main__.py"})
 
 
 @dataclass(frozen=True)
 class Config:
-    documentacao: Path
-    exigir: tuple[str, ...]
-    raizes: tuple[str, ...]
+    docs: Path
+    require: tuple[str, ...]
+    roots: tuple[str, ...]
 
 
 @dataclass(frozen=True)
-class Citacao:
-    arquivo: Path
-    linha: int
-    caminho: str
-    teste: str | None
+class Citation:
+    file: Path
+    line: int
+    path: str
+    test: str | None
 
 
-def ler_config() -> Config:
-    with (RAIZ / "pyproject.toml").open("rb") as arquivo:
-        dados: dict[str, Any] = tomllib.load(arquivo)
-    bruto = dados.get("tool", {}).get("cobertura-da-documentacao", {})
+def read_config() -> Config:
+    with (ROOT / "pyproject.toml").open("rb") as file:
+        data: dict[str, Any] = tomllib.load(file)
+    raw = data.get("tool", {}).get("docs-coverage", {})
     return Config(
-        documentacao=RAIZ / bruto.get("documentacao", "docs/sistema"),
-        exigir=tuple(bruto.get("exigir", [])),
-        raizes=tuple(bruto.get("raizes", [])),
+        docs=ROOT / raw.get("docs", "docs/system"),
+        require=tuple(raw.get("require", [])),
+        roots=tuple(raw.get("roots", [])),
     )
 
 
-def _citacao(trecho: str, raizes: tuple[str, ...]) -> tuple[str, str | None] | None:
-    """`api/x.py::teste` -> (`api/x.py`, `teste`); o que nao e caminho do repo -> None."""
-    eh_do_repo = trecho.startswith(tuple(f"{r}/" for r in raizes))
-    # Glob, placeholder (`<nome>`, `...`) e trecho com espaco sao exemplo, nao caminho.
-    if not eh_do_repo or any(c in trecho for c in "*{<> ") or "..." in trecho:
+def _citation(snippet: str, roots: tuple[str, ...]) -> tuple[str, str | None] | None:
+    """`api/x.py::test` -> (`api/x.py`, `test`); what is not a repository path -> None."""
+    in_repo = snippet.startswith(tuple(f"{r}/" for r in roots))
+    # Globs, placeholders (`<name>`, `...`) and snippets with spaces are examples, not paths.
+    if not in_repo or any(c in snippet for c in "*{<> ") or "..." in snippet:
         return None
-    caminho, _, teste = trecho.partition("::")
-    caminho = re.sub(r":\d+$", "", caminho)
-    return caminho, (teste.split("[")[0] or None)
+    path, _, test = snippet.partition("::")
+    path = re.sub(r":\d+$", "", path)
+    return path, (test.split("[")[0] or None)
 
 
-def citacoes(config: Config) -> Iterator[Citacao]:
-    for arquivo in sorted(config.documentacao.rglob("*.md")):
-        for numero, texto in enumerate(arquivo.read_text(encoding="utf-8").splitlines(), start=1):
-            for trecho in TRECHO_ENTRE_CRASES.findall(texto):
-                achado = _citacao(trecho.strip(), config.raizes)
-                if achado:
-                    yield Citacao(arquivo, numero, achado[0], achado[1])
+def citations(config: Config) -> Iterator[Citation]:
+    for file in sorted(config.docs.rglob("*.md")):
+        for number, text in enumerate(file.read_text(encoding="utf-8").splitlines(), start=1):
+            for snippet in BACKTICKED.findall(text):
+                found = _citation(snippet.strip(), config.roots)
+                if found:
+                    yield Citation(file, number, found[0], found[1])
 
 
-def exigidos(config: Config) -> Iterator[str]:
-    for padrao in config.exigir:
-        for caminho in sorted(RAIZ.glob(padrao.rstrip("/"))):
-            if caminho.name in IGNORADOS or (padrao.endswith("/") and not caminho.is_dir()):
+def required(config: Config) -> Iterator[str]:
+    for pattern in config.require:
+        for path in sorted(ROOT.glob(pattern.rstrip("/"))):
+            if path.name in IGNORED or (pattern.endswith("/") and not path.is_dir()):
                 continue
-            yield caminho.relative_to(RAIZ).as_posix()
+            yield path.relative_to(ROOT).as_posix()
 
 
-def _citado(caminho: str, citados: set[str]) -> bool:
-    prefixo = caminho.rstrip("/") + "/"
-    return caminho in citados or prefixo in citados or any(c.startswith(prefixo) for c in citados)
+def _cited(path: str, cited: set[str]) -> bool:
+    prefix = path.rstrip("/") + "/"
+    return path in cited or prefix in cited or any(c.startswith(prefix) for c in cited)
 
 
-def _ignorado_pelo_git(caminho: str) -> bool:
-    """Arquivo que so existe na maquina (cache, captura, cookie): nao some no CI por estar errado."""
-    resultado = subprocess.run(  # noqa: S603 - argumentos fixos, sem shell
-        ["git", "check-ignore", "-q", caminho],  # noqa: S607 - git do PATH, como no Makefile
-        cwd=RAIZ,
+def _ignored_by_git(path: str) -> bool:
+    """A file that only exists on the machine (cache, capture, cookie): it is not missing in CI by mistake."""
+    result = subprocess.run(  # noqa: S603 - fixed arguments, no shell
+        ["git", "check-ignore", "-q", path],  # noqa: S607 - git from PATH, as in the Makefile
+        cwd=ROOT,
         check=False,
     )
-    return resultado.returncode == 0
+    return result.returncode == 0
 
 
-def _problema_da_citacao(citacao: Citacao) -> str | None:
-    alvo = RAIZ / citacao.caminho
-    if not alvo.exists() and not _ignorado_pelo_git(citacao.caminho):
-        return f"cita `{citacao.caminho}`, que nao existe"
-    if citacao.teste and alvo.is_file():
-        definicao = re.compile(rf"^\s*(async\s+)?def {re.escape(citacao.teste)}\b", re.MULTILINE)
-        if not definicao.search(alvo.read_text(encoding="utf-8")):
-            return f"cita o teste `{citacao.teste}`, que nao existe em `{citacao.caminho}`"
+def _citation_problem(citation: Citation) -> str | None:
+    target = ROOT / citation.path
+    if not target.exists() and not _ignored_by_git(citation.path):
+        return f"cites `{citation.path}`, which does not exist"
+    if citation.test and target.is_file():
+        definition = re.compile(rf"^\s*(async\s+)?def {re.escape(citation.test)}\b", re.MULTILINE)
+        if not definition.search(target.read_text(encoding="utf-8")):
+            return f"cites the test `{citation.test}`, which does not exist in `{citation.path}`"
     return None
 
 
-def verificar(config: Config) -> list[str]:
-    todas = list(citacoes(config))
-    citados = {c.caminho.rstrip("/") for c in todas} | {c.caminho for c in todas}
-    erros = [
-        f"{caminho}: {CODIGO_SEM_DOC} nao aparece em nenhum arquivo de "
-        f"{config.documentacao.relative_to(RAIZ)}/"
-        for caminho in exigidos(config)
-        if not _citado(caminho, citados)
+def check(config: Config) -> list[str]:
+    everything = list(citations(config))
+    cited = {c.path.rstrip("/") for c in everything} | {c.path for c in everything}
+    errors = [
+        f"{path}: {UNDOCUMENTED} does not appear in any file of {config.docs.relative_to(ROOT)}/"
+        for path in required(config)
+        if not _cited(path, cited)
     ]
-    for citacao in todas:
-        problema = _problema_da_citacao(citacao)
-        if problema:
-            local = f"{citacao.arquivo.relative_to(RAIZ)}:{citacao.linha}"
-            erros.append(f"{local}: {CODIGO_CAMINHO_MORTO} {problema}")
-    return erros
+    for citation in everything:
+        problem = _citation_problem(citation)
+        if problem:
+            where = f"{citation.file.relative_to(ROOT)}:{citation.line}"
+            errors.append(f"{where}: {DEAD_PATH} {problem}")
+    return errors
 
 
 def main() -> int:
-    erros = verificar(ler_config())
-    for erro in erros:
-        print(erro)
-    if erros:
-        print(f"Encontrados {len(erros)} erros. Atualize a documentacao (CLAUDE.md, secao Documentacao).")
+    errors = check(read_config())
+    for error in errors:
+        print(error)
+    if errors:
+        print(f"Found {len(errors)} errors. Update the documentation (CLAUDE.md, Documentation section).")
         return 1
     return 0
 

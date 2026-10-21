@@ -1,228 +1,235 @@
-# Estrutura: monólito modular
+# Structure: modular monolith
 
-Um processo, um deploy, um banco — mas dividido em **módulos de domínio com fronteira
-garantida**. Cada módulo guarda as próprias rotas, DTOs, modelos e regra; módulo só conversa com
-outro pela interface pública dele; efeito colateral em outro domínio vai por evento. Sem a
-garantia (contratos de import no CI), em três meses volta a ser pasta trocada de lugar.
+One process, one deploy, one database — but divided into **domain modules with a guaranteed
+boundary**. Each module holds its own routes, DTOs, models and logic; a module only talks to
+another through its public interface; a side effect in another domain goes through an event.
+Without the guarantee (import contracts in CI), in three months it is back to being folders moved
+around.
 
-## Raiz
+## Root
 
 ```
-projeto/
-├── api/            back FastAPI (pacote Python), ver abaixo
-├── pipeline/       CLI do projeto (typer), `[project.scripts] nome = "pipeline.cli:app"`
-├── ferramentas/    scripts de qualidade/geração: tamanho_de_funcao.py, cobertura_da_documentacao.py, openapi.py
-├── migrations/     Alembic (versions/NNNN_nome_curto.py, numeração sequencial de 4 dígitos)
-├── tests/          pytest: unidade/, integracao/, dourados/, fakes na raiz (*_falso.py)
-├── web/            front (Vite) com package.json próprio, ver abaixo
+project/
+├── api/            FastAPI backend (Python package), see below
+├── pipeline/       the project's CLI (typer), `[project.scripts] name = "pipeline.cli:app"`
+├── tools/          quality/generation scripts: function_size.py, docs_coverage.py, openapi.py
+├── migrations/     Alembic (versions/NNNN_short_name.py, sequential 4-digit numbering)
+├── tests/          pytest: unit/, integration/, golden/, fakes at the root (fake_*.py)
+├── web/            frontend (Vite) with its own package.json, see below
 ├── docker/         *.Dockerfile, entrypoint-*.sh
-├── specs/          NN-nome.md, o que foi pedido, na ordem de leitura
-├── docs/           sistema/ (como funciona hoje) e deploy-<paas>.md
+├── specs/          NN-name.md, what was asked, in reading order
+├── docs/           system/ (how it works today), glossary.md, deploy-<paas>.md
 ├── CLAUDE.md, README.md, Makefile
 ├── docker-compose.yml, docker-compose-<paas>.yml
 ├── pyproject.toml, uv.lock, alembic.ini
 └── .env.example, .gitignore, .dockerignore
 ```
 
-Dados grandes (acervo, cache, mídia) ficam **fora do git e fora da imagem**: diretório
-gitignored na raiz, montado como volume.
+Large data (corpus, cache, media) stays **out of git and out of the image**: a gitignored
+directory at the root, mounted as a volume.
 
-## Back (`api/`)
+## Backend (`api/`)
 
 ```
 api/
-├── nucleo/         o que todo módulo usa e que não tem domínio
-│   ├── config.py   Configuracao(BaseSettings) única, frozen, lida por configuracao() com lru_cache
-│   ├── db.py       engine, fábrica de sessão, Base dos modelos, unidade de trabalho, obter_do_usuario
-│   ├── deps.py     aliases Annotated sem domínio: SessaoBd, paginação (UsuarioAtual/Admin são do módulo auth)
-│   ├── saude.py    /health com registrar_verificacao(nome, funcao): cada módulo registra a sua parte
-│   ├── erros.py    ErroDeAplicacao + manipulador único de problem+json
-│   ├── eventos.py  barramento de eventos de domínio (emitir / assinar / o_que_veio)
-│   ├── tarefas.py  Agendador de tarefas em segundo plano (lança depois da resposta) e o evento ApiSubiu
-│   ├── relogio.py  a hora do usuário (agora, hoje, dia_de): um lugar só para o teste trocar
+├── core/           what every module uses and that has no domain
+│   ├── config.py   a single Settings(BaseSettings), frozen, read by settings() with lru_cache
+│   ├── db.py       engine, session factory, models' Base, unit_of_work, get_owned
+│   ├── deps.py     domain-free Annotated aliases: DbSession, pagination (CurrentUser/Admin belong to auth)
+│   ├── health.py   /health with register_check(name, fn): each module registers its own part
+│   ├── errors.py   AppError + the single problem+json handler
+│   ├── events.py   domain event bus (emit / subscribe / results_of)
+│   ├── tasks.py    background task Scheduler (runs after the response) and the ApiStarted event
+│   ├── clock.py    the user's time (now, today, day_of): one place for tests to swap
 │   ├── log.py      structlog
-│   ├── modelos.py  agregador: importa o modelos.py de cada módulo (para o Alembic e o metadata)
-│   └── main.py     criar_app(): lifespan, middleware, junta os routers dos módulos. Nada mais
-├── infra/          técnico, sem regra de negócio (ex.: leitor de arquivo, índice, cliente de LLM, mídia)
-└── modulos/
-    └── <dominio>/
-        ├── __init__.py   a INTERFACE PÚBLICA: o que outro módulo pode importar (`__all__`)
-        ├── rotas.py      APIRouter, só HTTP
-        ├── schemas.py    DTOs pydantic: XDto (saída), XEntrada (criação), XAlteracao (patch)
-        ├── modelos.py    modelos SQLAlchemy do domínio
-        ├── eventos.py    os eventos que o módulo EMITE (dataclasses, exportadas pela interface)
-        ├── assinantes.py os eventos de outros módulos a que ele REAGE
-        ├── deps.py       dependências do FastAPI que o módulo oferece (ex.: UsuarioAtual em auth)
-        └── <subdominio>/ a regra de negócio, um pacote por subdomínio (ex.: em progresso, dia/,
-                          missoes/, conquistas/, loja/; em questões, listagem/, filtro/, treino/)
+│   ├── models.py   aggregator: imports each module's models.py (for Alembic and the metadata)
+│   └── main.py     create_app(): lifespan, middleware, gathers the modules' routers. Nothing else
+├── infra/          technical, no business logic (e.g. file reader, index, LLM client, media)
+└── modules/
+    └── <domain>/
+        ├── __init__.py   the PUBLIC INTERFACE: what another module may import (`__all__`)
+        ├── routes.py     APIRouter, HTTP only
+        ├── schemas.py    pydantic DTOs: XDto (output), XCreate (creation), XUpdate (patch)
+        ├── models.py     the domain's SQLAlchemy models
+        ├── events.py     the events the module EMITS (dataclasses, exported by the interface)
+        ├── subscribers.py the events from other modules it REACTS to
+        ├── deps.py       FastAPI dependencies the module offers (e.g. CurrentUser in auth)
+        └── <subdomain>/  the business logic, one package per subdomain (e.g. in progress, day/,
+                          missions/, achievements/, shop/; in questions, listing/, filter/, practice/)
 ```
 
-**Raiz do módulo = contrato; regra = subpastas por subdomínio.** Na raiz ficam só os arquivos de
-contrato acima (`rotas.py` e `schemas.py` viram pacotes `rotas/`/`schemas/` quando são vários).
-Toda pasta tem no máximo **8 arquivos `.py`** (fora o `__init__.py`) — passou, agrupe. Nome de
-subpasta é o subdomínio, nunca camada técnica genérica (`services/`, `utils/`, `helpers/`). O
-`__init__.py` do módulo reexporta o que é público: reorganizar por dentro não muda nenhum outro
-módulo, por isso dá para fazer um agente por módulo em paralelo. Garantia: teste de arquitetura
-(`testes.md`).
+**Module root = contract; logic = subfolders per subdomain.** The root holds only the contract
+files above (`routes.py` and `schemas.py` become `routes/`/`schemas/` packages when there are
+several). Every folder has at most **8 `.py` files** (excluding `__init__.py`) — past that,
+group them. A subfolder's name is the subdomain, never a generic technical layer (`services/`,
+`utils/`, `helpers/`). The module's `__init__.py` re-exports what is public: reorganizing the
+inside changes no other module, which is why one agent per module can work in parallel.
+Guarantee: architecture test (`testing.md`).
 
-Os módulos têm uma **ordem de camadas** de baixo para cima (no Crivo: `acervo`, `recompensas` →
-`auth` → `editais` → `questoes` → `revisao`, `aulas` → `cartoes`, `simulados` → `progresso` →
-`estudar` e os de leitura, `admin` no topo). Quem está embaixo não importa quem está em cima;
-quando precisa avisar, emite evento. Três tipos de módulo que aparecem ao desfazer ciclos:
-- **módulo de dados embaixo de todos** (ex.: `acervo`: os modelos e catálogos que vários domínios
-  leem), para leitura comum não puxar um domínio inteiro;
-- **módulo só de DTOs e enums** (ex.: `recompensas`: o `MudancasDto` que o progresso devolve e que
-  aparece na resposta de quem emite) — fica embaixo dos emissores e acima de nada; sem regra;
-- **módulo de leitura no topo** (ex.: `admin`, `estatisticas`): pode ler de todos, ninguém o importa.
+Modules have a **layer order** from bottom to top (in Crivo: `corpus`, `rewards` → `auth` →
+`notices` → `questions` → `review`, `lessons` → `flashcards`, `mock_exams` → `progress` →
+`study` and the read-only ones, `admin` at the top). Lower modules do not import upper ones;
+when they need to notify, they emit an event. Three kinds of module show up when untangling
+cycles:
+- **a data module below everyone** (e.g. `corpus`: the models and catalogs several domains
+  read), so common reads do not pull in a whole domain;
+- **a DTO-and-enum-only module** (e.g. `rewards`: the `ChangesDto` that progress returns and that
+  appears in the emitter's response) — it sits below the emitters and above nothing; no logic;
+- **a read-only module at the top** (e.g. `admin`, `stats`): it may read from everyone, nobody
+  imports it.
 
-### Fronteiras (garantidas por `import-linter` no `make lint` e no CI)
+### Boundaries (guaranteed by `import-linter` in `make lint` and in CI)
 
 ```toml
 [tool.importlinter]
 root_packages = ["api"]
 
 [[tool.importlinter.contracts]]
-name = "camadas: modulos -> infra -> nucleo"
+name = "layers: modules -> infra -> core"
 type = "layers"
-layers = ["api.modulos", "api.infra", "api.nucleo"]
+layers = ["api.modules", "api.infra", "api.core"]
 
 [[tool.importlinter.contracts]]
-name = "modulo so importa a interface publica de outro modulo"
-type = "independence"        # ou "forbidden" por par, com allow_indirect_imports
-modules = ["api.modulos.questoes", "api.modulos.cartoes", "..."]
-# importacoes de interface publica liberadas em ignore_imports, com comentario do porque
+name = "a module only imports another module's public interface"
+type = "independence"        # or "forbidden" per pair, with allow_indirect_imports
+modules = ["api.modules.questions", "api.modules.flashcards", "..."]
+# public interface imports allowed in ignore_imports, with a comment saying why
 ```
 
-Regras:
-1. **Interface pública no `__init__.py`.** `from api.modulos.editais import recorte_do_edital`
-   pode; `from api.modulos.editais.processamento import _algo` não. O `__init__` reexporta só o
-   que outros módulos precisam, com `__all__`. Dentro do `__init__`, modelos e schemas primeiro e
-   services depois (com `I001` desligado só nesses arquivos): enquanto existe ciclo, é essa ordem
-   que deixa a importação funcionar. Teste mexe no nome da interface
-   (`monkeypatch.setattr("api.modulos.progresso.agora", ...)`), que é o que os outros módulos leem.
-2. **Dependência do usuário logado é do módulo `auth`** (`api/modulos/auth/deps.py`:
-   `UsuarioAtual`, `Admin`...), exportada pela interface dele; o núcleo não conhece usuário.
-   Rota que precisa da sessão do usuário (ex.: servir mídia por token) é HTTP de domínio e mora
-   num módulo, não em `infra`. Infra que precisa avisar um domínio (ex.: "figura indisponível"
-   marca a questão) emite evento.
-3. **Camadas:** `modulos` importa `infra` e `nucleo`; `infra` importa só `nucleo`; `nucleo` não
-   importa ninguém de dentro do `api`. O `nucleo/main.py` é a exceção natural (junta os routers)
-   e fica fora do contrato de camadas.
-4. **Sem ciclos entre módulos.** Se A precisa avisar B do que aconteceu, A **emite um evento**
-   e B assina — A não importa B. Ex.: questões emite `RespostaRegistrada`, cartões
-   `CartaoRevisado`, simulados `SimuladoFinalizado`, auth `UsuarioCriado`; revisão e progresso
-   assinam e decidem cartão de revisão, moedas, missões e ofensiva. Convenção:
-   - os assinantes rodam **na mesma sessão** (o que gravam comita ou desfaz junto) e na ordem de
-     `MODULOS_COM_ASSINANTES` (ex.: revisão antes de progresso), carregados no primeiro `emitir`
-     — o núcleo não importa módulo, e teste/CLI veem os mesmos assinantes que a API;
-   - o que os assinantes devolvem volta ao emissor (`eventos.o_que_veio(resultados, Tipo)`): é
-     assim que a resposta da API continua trazendo "o que mudou" sem o emissor conhecer o progresso;
-   - `tests/unidade/test_eventos.py` confere quem assina cada evento;
-   - evento é aviso. Usá-lo como pergunta (ex.: "conte isto pelo índice em memória") funciona,
-     mas é exceção a justificar — normalmente a função muda de módulo;
-   - infraestrutura transversal que gerava ciclo (agendador de tarefas, relógio, recuperação na
-     subida) vai para o núcleo; cada módulo registra a própria recuperação assinando `ApiSubiu`.
-5. **Modelos por módulo.** Cada módulo tem o próprio `modelos.py`; `nucleo/modelos.py` importa
-   todos para o Alembic enxergar o metadata inteiro. FK entre módulos é por nome de tabela
-   (`ForeignKey("usuarios.id")`), sem importar a classe do outro módulo; `relationship` entre
-   módulos só com string e só quando necessário.
-6. **Exceções às fronteiras** ficam em `ignore_imports` com comentário e entram como lacuna a
-   resolver — nunca silenciosas.
+Rules:
+1. **Public interface in `__init__.py`.** `from api.modules.notices import notice_scope` is
+   fine; `from api.modules.notices.processing import _something` is not. The `__init__`
+   re-exports only what other modules need, with `__all__`. Inside the `__init__`, models and
+   schemas first and services after (with `I001` turned off only in those files): while a cycle
+   exists, that order is what makes the import work. Tests patch the interface's name
+   (`monkeypatch.setattr("api.modules.progress.now", ...)`), which is what other modules read.
+2. **The logged-in user dependency belongs to the `auth` module** (`api/modules/auth/deps.py`:
+   `CurrentUser`, `Admin`...), exported by its interface; core does not know about users. A
+   route that needs the user's session (e.g. serving media by token) is domain HTTP and lives in
+   a module, not in `infra`. Infra that needs to notify a domain (e.g. "figure unavailable"
+   flags the question) emits an event.
+3. **Layers:** `modules` imports `infra` and `core`; `infra` imports only `core`; `core` imports
+   nothing from inside `api`. `core/main.py` is the natural exception (it gathers the routers)
+   and stays out of the layers contract.
+4. **No cycles between modules.** If A needs to tell B what happened, A **emits an event** and B
+   subscribes — A does not import B. E.g.: questions emits `AnswerRecorded`, flashcards
+   `FlashcardReviewed`, mock exams `MockExamFinished`, auth `UserCreated`; review and progress
+   subscribe and decide review card, coins, missions and streak. Convention:
+   - subscribers run **in the same session** (what they write commits or rolls back together)
+     and in the order of `MODULES_WITH_SUBSCRIBERS` (e.g. review before progress), loaded on the
+     first `emit` — core does not import modules, and tests/CLI see the same subscribers as the
+     API;
+   - what subscribers return goes back to the emitter (`events.results_of(results, Type)`): this
+     is how the API response keeps bringing "what changed" without the emitter knowing about
+     progress;
+   - `tests/unit/test_events.py` checks who subscribes to each event;
+   - an event is a notice. Using it as a question (e.g. "count this through the in-memory
+     index") works, but it is an exception to justify — usually the function changes modules;
+   - cross-cutting infrastructure that created cycles (task scheduler, clock, recovery on
+     startup) goes to core; each module registers its own recovery by subscribing to
+     `ApiStarted`.
+5. **Models per module.** Each module has its own `models.py`; `core/models.py` imports all of
+   them so Alembic sees the whole metadata. FKs between modules are by table name
+   (`ForeignKey("users.id")`), without importing the other module's class; `relationship`
+   between modules only with a string and only when necessary.
+6. **Exceptions to the boundaries** go in `ignore_imports` with a comment and are logged as a gap
+   to resolve — never silent.
 
-### Camada HTTP, transação e posse
+### HTTP layer, transaction and ownership
 
-- **Router só faz HTTP**: valida entrada, chama o service, devolve DTO. Nada de `select(...)`
-  nem regra no router.
-- **A transação tem um dono só: a unidade de trabalho da requisição.** A dependência da sessão
-  abre a transação, comita no fim se a requisição deu certo e desfaz se deu erro. Service e
-  router **não** chamam `commit()`; service usa `flush()` quando precisa do id gerado. Assim
-  duas operações de services diferentes compõem uma transação só. Tarefa em segundo plano e
-  comando da CLI abrem a própria unidade de trabalho (`async with unidade_de_trabalho() as s:`).
-- **"O registro do usuário ou 404" é um helper**:
-  `await obter_do_usuario(sessao, Edital, id, usuario, o_que="Edital")` — busca, confere a posse
-  (`usuario_id`), e levanta `nao_encontrado` igual para "não existe" e "é de outro usuário"
-  (não vaza que o id existe). Nunca `sessao.get` + `if x.usuario_id != usuario.id` à mão.
-- Service não conhece `Request`/`Response`.
+- **The router only does HTTP**: validates input, calls the service, returns a DTO. No
+  `select(...)` nor logic in the router.
+- **The transaction has a single owner: the request's unit of work.** The session dependency
+  opens the transaction, commits at the end if the request succeeded and rolls back on error.
+  Service and router **do not** call `commit()`; a service uses `flush()` when it needs the
+  generated id. That way two operations from different services compose a single transaction.
+  A background task and a CLI command open their own unit of work
+  (`async with unit_of_work() as session:`).
+- **"The user's record or 404" is a helper**:
+  `await get_owned(session, Notice, id, user, what="Edital")` — fetches, checks ownership
+  (`user_id`), and raises `not_found` identically for "does not exist" and "belongs to another
+  user" (it does not leak that the id exists). `what` is product text (it ends up in the
+  `detail`). Never `session.get` + `if x.user_id != user.id` by hand.
+- A service does not know `Request`/`Response`.
 
-### Tamanho
+### Size
 
-Função até 30 linhas úteis, **arquivo até 300 linhas** (`ferramentas/tamanho_de_funcao.py`
-mede os dois). Arquivo que passa é dividido por responsabilidade dentro do módulo
-(`servico.py` vira `servico/criar.py`, `servico/responder.py`...), não por número de linhas.
+Function up to 30 useful lines, **file up to 300 lines** (`tools/function_size.py` measures
+both). A file that goes over is split by responsibility inside the module (`service.py` becomes
+`service/create.py`, `service/answer.py`...), not by line count.
 
-Um arquivo de dados lido pelos dois lados (ex.: `sanitizacao.json`) mora no back e o front
-importa por caminho relativo — uma fonte só.
+A data file read by both sides (e.g. `sanitize.json`) lives in the backend and the frontend
+imports it by relative path — a single source.
 
-## Front (`web/`)
+## Frontend (`web/`)
 
-A mesma ideia: módulos por domínio, e as rotas só montam telas.
+The same idea: modules by domain, and routes only assemble screens.
 
 ```
 web/src/
-├── main.tsx, router.tsx, estilos.css
-├── api/            client.ts (fetch único, lerProblema), tipos.ts (gerado), modelos.ts (aliases)
-├── rotas/          um arquivo por rota TanStack Router: lê params (Route.useParams), monta a tela
-│                   com componentes do módulo. Fino.
-├── modulos/
-│   └── <dominio>/
-│       ├── componentes/   componentes do domínio
-│       ├── hooks.ts       hooks TanStack Query do domínio (chaves, consultas, mutações)
-│       ├── lib.ts         funções puras do domínio
-│       └── index.ts       interface pública do módulo
-├── components/     só o que é compartilhado por vários módulos
-│   └── ui/         primitivos: Card, Botao, Modal, Gaveta, Input, Abas, PainelLateral, NoDeArvore...
-└── lib/            transversal: formatacao.ts (único lugar que formata número/data), atalhos.ts
-                    (único que escuta teclado), paletas.ts (único com cor fixa de conteúdo),
-                    storage, tema, filtro-url
+├── main.tsx, router.tsx, styles.css
+├── api/            client.ts (single fetch, readProblem), types.ts (generated), models.ts (aliases)
+├── routes/         one file per TanStack Router route: reads params (Route.useParams), assembles the
+│                   screen with the module's components. Thin.
+├── modules/
+│   └── <domain>/
+│       ├── components/   the domain's components
+│       ├── hooks.ts      the domain's TanStack Query hooks (keys, queries, mutations)
+│       ├── lib.ts        the domain's pure functions
+│       └── index.ts      the module's public interface
+├── components/     only what several modules share
+│   └── ui/         primitives: Card, Button, Modal, Drawer, Input, Tabs, SidePanel, TreeNode...
+└── lib/            cross-cutting: formatting.ts (the only place that formats numbers/dates),
+                    shortcuts.ts (the only one that listens to the keyboard), palettes.ts (the only
+                    one with fixed content colors), storage, theme, url-filter
 ```
 
-| Arquivo | Papel |
+| File | Role |
 |---|---|
-| `src/api/client.ts` | `fetch` único, `lerProblema()` único para erros, `BASE = "/api/v1"` |
-| `src/api/tipos.ts` | **gerado** do `openapi.json` (não editar, fora do lint) |
-| `src/estilos.css` | tokens de cor com valor claro e escuro (`:root[data-theme=...]`) + `@theme inline`; `@custom-variant dark` para o `dark:` seguir o tema do app, não o do sistema |
-| `tests/` | Vitest (`*.test.ts(x)`), `setup.ts`, `auxiliar/` (`tela.tsx` com `renderizarTela`/`apiFalsa`, `dados*.ts`) |
-| `e2e/` | Playwright (`rotas.spec.ts`, `celular.spec.ts`, `fluxos/*.spec.ts`, `auxiliar.ts`) |
-| `Caddyfile` | serve o build e faz proxy de `/api/*` e `/health` |
+| `src/api/client.ts` | single `fetch`, single `readProblem()` for errors, `BASE = "/api/v1"` |
+| `src/api/types.ts` | **generated** from `openapi.json` (do not edit, out of lint) |
+| `src/styles.css` | color tokens with light and dark values (`:root[data-theme=...]`) + `@theme inline`; `@custom-variant dark` so `dark:` follows the app's theme, not the system's |
+| `tests/` | Vitest (`*.test.ts(x)`), `setup.ts`, `helpers/` (`screen.tsx` with `renderScreen`/`fakeApi`, `data*.ts`) |
+| `e2e/` | Playwright (`routes.spec.ts`, `mobile.spec.ts`, `flows/*.spec.ts`, `helpers.ts`) |
+| `Caddyfile` | serves the build and proxies `/api/*` and `/health` |
 
-Fronteira no front: módulo importa outro só pelo `index.ts` dele (regra
-`no-restricted-imports` com padrão `**/modulos/*/!(index)`), e `components/`/`lib/` não
-importam `modulos/`.
+Frontend boundary: a module imports another only through its `index.ts` (rule
+`no-restricted-imports` with the pattern `**/modules/*/!(index)`), and `components/`/`lib/` do
+not import `modules/`.
 
 Stack: React 19, Vite 6, TypeScript 5 strict, Tailwind v4 (`@tailwindcss/vite`), TanStack
-Router + Query, Radix para diálogo/abas. Dev server com proxy de `/api` e `/health` para
-`API_URL` (padrão `http://localhost:8000`) — mesmo domínio em dev e em produção, sem CORS.
+Router + Query, Radix for dialog/tabs. Dev server with a proxy for `/api` and `/health` to
+`API_URL` (default `http://localhost:8000`) — same domain in dev and production, no CORS.
 
-## Levar um projeto em camadas (`routers/`, `schemas/`, `services/`) para módulos
+## Moving a layered project (`routers/`, `schemas/`, `services/`) to modules
 
-1. **Medir o acoplamento** antes: quem importa quem entre domínios
-   (`grep -rn "from api.services.X" api | grep -v "api/services/X"`). O número diz quanto vai
-   virar evento ou interface pública.
-2. **Mover é um passo só, mecânico, de um agente só** (back e front podem ser dois agentes, em
-   paralelo, porque não se tocam): `git mv` para a estrutura nova, imports reescritos, testes
-   verdes, nenhuma mudança de comportamento. Mover em paralelo com outras mudanças é conflito
-   garantido; nada mais roda enquanto isso.
-3. **Ligar os contratos** do import-linter com as violações atuais em `ignore_imports`
-   (comentadas, como a lista `PENDENTES` do eslint).
-4. **Base comum, pelo agente principal**: unidade de trabalho, `obter_do_usuario`, barramento de
-   eventos, teto de 300 linhas por arquivo, teste de arquitetura e os contratos do
-   import-linter (ainda fora do `make lint`, em `make fronteiras`). Tudo com listas temporárias e
-   variável de ambiente "estrita" para conferir o alvo.
-5. **Interfaces públicas e camadas: um agente só.** Parece paralelizável por módulo, mas não é:
-   enquanto há ciclos entre módulos, reexportar nomes nos `__init__.py` quebra na importação
-   conforme a ordem em que os módulos carregam, e isso só aparece com tudo junto. Antes, o
-   principal mede quem importa o quê de quem e escreve um **contrato de nomes** (o que cada
-   `__init__` exporta, privados `_x` renomeados, colisões resolvidas) — sem ele dois lados
-   escolhem nomes diferentes.
-6. **Depois, em paralelo, um agente por módulo** (arquivos disjuntos): tirar `commit()`, usar
-   `obter_do_usuario`, dividir arquivos acima de 300 linhas, limpar comentários, as correções do
-   domínio.
-7. **Por último, um agente só para os ciclos**: chamadas diretas entre módulos viram eventos;
-   `sem-ciclos` passa e os contratos entram no `make lint`.
-8. `docs/sistema/` com os caminhos novos a cada passo (`make docs` acusa todo caminho que sumiu).
+1. **Measure the coupling** first: who imports whom across domains
+   (`grep -rn "from api.services.X" api | grep -v "api/services/X"`). The number says how much
+   will become events or public interface.
+2. **Moving is a single mechanical step by a single agent** (backend and frontend can be two
+   agents in parallel, since they do not touch each other): `git mv` to the new structure,
+   imports rewritten, tests green, no behavior change. Moving in parallel with other changes is
+   a guaranteed conflict; nothing else runs meanwhile.
+3. **Turn on the import-linter contracts** with the current violations in `ignore_imports`
+   (commented, like eslint's `PENDING` list).
+4. **Common base, by the main agent**: unit of work, `get_owned`, event bus, 300-line file cap,
+   architecture test and the import-linter contracts (still outside `make lint`, in a separate
+   boundaries target). All with temporary lists and a "strict" environment variable to check
+   the target.
+5. **Public interfaces and layers: a single agent.** It looks parallelizable per module, but it
+   is not: while there are cycles between modules, re-exporting names in the `__init__.py`
+   files breaks at import time depending on the order modules load, and that only shows up with
+   everything together. Beforehand, the main agent measures who imports what from whom and
+   writes a **names contract** (what each `__init__` exports, private `_x` renamed, collisions
+   resolved) — without it two sides pick different names.
+6. **Then, in parallel, one agent per module** (disjoint files): remove `commit()`, use
+   `get_owned`, split files above 300 lines, clean up comments, the domain's fixes.
+7. **Last, a single agent for the cycles**: direct calls between modules become events; the
+   no-cycles contract passes and the contracts enter `make lint`.
+8. `docs/system/` with the new paths at each step (`make docs` flags every path that vanished).
 
-No front, a mudança de lugar foi um agente só e trouxe junto: módulo `shell` (navegação, toasts,
-404, que dependem de auth e progresso e por isso não podem ficar em `components/`); a parte de
-`lib/toasts` que conhece progresso foi para o módulo de progresso; e a regra de fronteira por
-caminho relativo (`../outro-modulo/...`) é uma regex montada da lista de pastas de `modulos/`,
-porque o padrão `**/modulos/**` não pega import relativo.
+On the frontend, the move was a single agent and brought along: a `shell` module (navigation,
+toasts, 404, which depend on auth and progress and therefore cannot live in `components/`); the
+part of `lib/toasts` that knows about progress moved to the progress module; and the boundary
+rule for relative paths (`../other-module/...`) is a regex built from the list of folders in
+`modules/`, because the pattern `**/modules/**` does not catch relative imports.

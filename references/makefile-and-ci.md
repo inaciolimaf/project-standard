@@ -1,71 +1,75 @@
-# Makefile e CI
+# Makefile and CI
 
 ## Makefile
 
-Primeira linha: `# <App> — comandos principais. \`make\` sem alvo lista os comandos.`
-Todo alvo tem `## descrição`; `help` é o primeiro alvo (padrão) e lista com cor:
+First line: `# <App> — main commands. \`make\` with no target lists the commands.`
+Every target has a `## description`; `help` is the first (default) target and lists with color:
 
 ```make
-help: ## Lista os comandos disponiveis
+help: ## List the available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 ```
 
-Seções com comentário-régua (`# --- Docker ----...`). Alvos em português, curtos:
+Sections with a ruler comment (`# --- Docker ----...`). Targets are short. **A new project names
+them in English; an existing project keeps the names people already type** (operations rule in
+`SKILL.md`). The table gives both: the standard's name and Crivo's.
 
-| Seção | Alvo | Faz |
-|---|---|---|
-| Docker | `docker-up` / `docker-down` / `docker-logs` | `docker compose up -d` / `down` / `logs -f` |
-| | `db-teste` | `CREATE DATABASE <app>_teste` no Postgres do compose (`\|\| true`) |
-| Banco | `migrar` | `uv run alembic upgrade head` |
-| | `<carga>` | `migrar` como dependência; `ARGS=` repassa flags |
-| Qualidade | `teste` | `DATABASE_URL_TESTE=$(DB_TESTE_URL) uv run pytest` |
-| | `lint` | `ruff check .` + `ruff format --check .` + `python -m ferramentas.tamanho_de_funcao` + `lint-imports` (o mesmo que o CI: o local não passa onde o CI quebra) |
-| | `fronteiras` | só `lint-imports` (camadas, interface pública, sem ciclos) |
-| | `formato` | `ruff format .` |
-| | `tipos` | `mypy` |
-| | `docs` | `python -m ferramentas.cobertura_da_documentacao` (ver `documentacao.md`) |
-| Front | `tipos-web` | `python -m ferramentas.openapi` + `npm run tipos` |
-| | `web-dev` | `npm run dev` |
-| | `web-teste` | `npm run lint && npm run formato:checar && npx tsc -b && npm test` (mesma ordem do CI) |
-| | `web-formato` | `npm run formato` (prettier, corrige) |
-| | `web-cobertura` | `npm run cobertura` (Vitest com cobertura; falha abaixo de 60%) |
-| | `web-build` | `npm run build` |
-| | `e2e` | depende de `web-build`; `npm run e2e -- --project=rotas` |
-| | `celular` | depende de `web-build`; `npm run celular` |
-| | `e2e-fluxos` | depende de `web-build`; projeto `fluxos` do Playwright |
+| Section | Target (new project) | Crivo | Does |
+|---|---|---|---|
+| Docker | `docker-up` / `docker-down` / `docker-logs` | same | `docker compose up -d` / `down` / `logs -f` |
+| | `db-test` | `db-teste` | `CREATE DATABASE <app>_test` on the compose Postgres (`\|\| true`) |
+| Database | `migrate` | `migrar` | `uv run alembic upgrade head` |
+| | `<load>` | `<carga>` | `migrate` as a dependency; `ARGS=` passes flags through |
+| Quality | `test` | `teste` | `<TEST_DB_VAR>=$(TEST_DB_URL) uv run pytest` |
+| | `lint` | `lint` | `ruff check .` + `ruff format --check .` + `python -m tools.function_size` + `lint-imports` (the same as CI: local does not pass where CI breaks) |
+| | `boundaries` | `fronteiras` | only `lint-imports` (layers, public interface, no cycles) |
+| | `format` | `formato` | `ruff format .` |
+| | `types` | `tipos` | `mypy` |
+| | `docs` | `docs` | `python -m tools.docs_coverage` (see `documentation.md`) |
+| Frontend | `web-types` | `tipos-web` | `python -m tools.openapi` + the npm types script |
+| | `web-dev` | `web-dev` | `npm run dev` |
+| | `web-test` | `web-teste` | lint, format check, `npx tsc -b`, `npm test` (same order as CI) |
+| | `web-format` | `web-formato` | prettier, fixing |
+| | `web-coverage` | `web-cobertura` | Vitest with coverage; fails below 60% |
+| | `web-build` | `web-build` | `npm run build` |
+| | `e2e` | `e2e` | depends on `web-build`; Playwright project `routes` |
+| | `mobile` | `celular` | depends on `web-build`; Playwright project `mobile` |
+| | `e2e-flows` | `e2e-fluxos` | depends on `web-build`; Playwright project `flows` |
 
-Variáveis no topo com padrão sobrescrevível: `API_URL ?= http://localhost:8000`,
-`DB_TESTE_URL := ...:$(or $(PORTA_DB),5432)/<app>_teste`. Todos os alvos em `.PHONY`.
+Variables at the top with overridable defaults: `API_URL ?= http://localhost:8000`,
+`TEST_DB_URL := ...:$(or $(DB_PORT),5432)/<app>_test`. Every target in `.PHONY`.
 
-Scripts do `web/package.json`: `dev`, `build` (`tsc -b && vite build`), `preview` (porta fixa
-4173 `--strictPort`), `tipos`, `lint`, `formato` (`prettier --write .`), `formato:checar`
-(`prettier --check .`), `test` (`vitest run`), `cobertura` (`vitest run --coverage`), `e2e`,
-`celular`.
+Scripts in `web/package.json` (new project): `dev`, `build` (`tsc -b && vite build`), `preview`
+(fixed port 4173 `--strictPort`), `types`, `lint`, `format` (`prettier --write .`),
+`format:check` (`prettier --check .`), `test` (`vitest run`), `coverage`
+(`vitest run --coverage`), `e2e`, `mobile`. Crivo keeps its Portuguese script names
+(`tipos`, `formato`, `formato:checar`, `cobertura`, `celular`).
 
 ## CI (`.github/workflows/ci.yml`)
 
-Primeira linha: comentário de uma linha dizendo o que roda. `on: push: [main]` + `pull_request`.
+First line: a one-line comment saying what runs. `on: push: [main]` + `pull_request`.
 
-**`back`** (service Postgres com healthcheck, banco `<app>_teste`):
+**`back`** (Postgres service with a healthcheck, database `<app>_test`):
 1. `astral-sh/setup-uv` → `uv sync --frozen`
 2. `ruff check . && ruff format --check .`
-3. `python -m ferramentas.tamanho_de_funcao`
+3. `python -m tools.function_size`
 4. `lint-imports`
-5. `python -m ferramentas.cobertura_da_documentacao`
+5. `python -m tools.docs_coverage`
 6. `mypy`
-7. `pytest -q` com `DATABASE_URL_TESTE`
-8. contrato: gera `openapi.json`, `npm ci`, `npm run tipos`, `git diff --exit-code -- src/api/tipos.ts`
+7. `pytest -q` with the test database URL
+8. contract: generate `openapi.json`, `npm ci`, the types script,
+   `git diff --exit-code -- src/api/types.ts`
 
-**`web`** (`working-directory: web`, Node 22 com cache npm pelo `package-lock.json`):
-`npm ci --no-audit --no-fund` → `npm run lint` → `npm run formato:checar` → `npx tsc -b` →
-`npm run cobertura` (testes + piso de 60%) → `npm run build`
+**`web`** (`working-directory: web`, Node 22 with npm cache by `package-lock.json`):
+`npm ci --no-audit --no-fund` → lint → format check → `npx tsc -b` → coverage (tests + the 60%
+floor) → `npm run build`
 
-**`e2e`** (`needs: [back, web]`, Postgres + env de produção falsa com segredos de 32+ bytes):
-dados falsos (mesma fábrica dos testes de integração) → `alembic upgrade head` → carga →
-cria conta e2e pela CLI → sobe uvicorn em background e espera `/health` num laço de `curl` com
-tempo limite (nunca `sleep N`; se não subir, imprime o log da API e falha) → `playwright
-install --with-deps chrome` → build → projetos `rotas`, `celular` e `fluxos` → `upload-artifact`
-das capturas com `if: always()`.
+**`e2e`** (`needs: [back, web]`, Postgres + a fake production env with 32+ byte secrets):
+fake data (the same factory as the integration tests) → `alembic upgrade head` → load → create
+the e2e account through the CLI → start uvicorn in the background and wait for `/health` in a
+`curl` loop with a timeout (never `sleep N`; if it does not come up, print the API log and fail)
+→ `playwright install --with-deps chrome` → build → projects `routes`, `mobile` and `flows` →
+`upload-artifact` of the captures with `if: always()`.
 
-Regra: todo passo do CI tem alvo equivalente no Makefile.
+Rule: every CI step has an equivalent Makefile target.

@@ -1,76 +1,94 @@
-# CLAUDE.md — <Projeto>
+# CLAUDE.md — <Project>
 
-<Duas ou três frases: o que o sistema é e o princípio de desenho principal.>
+<Two or three sentences: what the system is and the main design principle.>
 
-Este projeto segue a skill **`padrao-de-projeto`** (`~/.claude/skills/padrao-de-projeto/`).
-Mudança de padrão (lint, testes, docker, CI, documentação) vale nos dois lugares: aqui e na skill.
+This project follows the **`project-standard`** skill (`~/.claude/skills/project-standard/`).
+A change to the standard (lint, tests, docker, CI, documentation) applies in both places: here and
+in the skill.
 
-## Documentação — leia antes, atualize junto
+## Documentation — read first, update together
 
-- **`docs/sistema/`** explica o sistema como ele está: um arquivo por domínio, índice em
-  `docs/sistema/README.md`. Antes de mexer num domínio, leia o arquivo dele.
-- **Toda mudança no sistema atualiza a documentação no mesmo commit**: rota, tabela, fluxo,
-  regra, variável de ambiente, arquivo novo, removido ou renomeado → o arquivo do domínio.
-  Domínio novo → arquivo novo + linha no índice.
-- **Mantenha os `.md` arrumados**: ao passar por um arquivo de documentação (inclusive este
-  `CLAUDE.md`, o `README.md` e as specs), corrija o que estiver desatualizado, duplicado ou
-  confuso, mesmo que não seja da tarefa.
-- **Este `CLAUDE.md` também se atualiza**: comando novo, convenção nova, armadilha descoberta,
-  mudança de estrutura → entra aqui no mesmo commit.
-- `specs/` é o que foi pedido e por quê; divergência do código fica registrada em `docs/sistema/`.
-- Garantia: `make docs` (no CI).
+- **`docs/system/`** explains the system as it is: one file per domain, index in
+  `docs/system/README.md`. Before touching a domain, read its file.
+- **Every change to the system updates the documentation in the same commit**: route, table,
+  flow, rule, environment variable, new, removed or renamed file → the domain's file. New domain
+  → new file + a line in the index.
+- **Keep the `.md` files tidy**: when passing through a documentation file (including this
+  `CLAUDE.md`, the `README.md` and the specs), fix what is outdated, duplicated or confusing,
+  even if it is not part of the task.
+- **This `CLAUDE.md` updates too**: new command, new convention, discovered pitfall, structure
+  change → it goes here in the same commit.
+- `specs/` is what was asked and why; divergence from the code is recorded in `docs/system/`.
+- Guarantee: `make docs` (in CI).
 
-## Onde as coisas estão
+## Language
+
+- **The code is all in English**: identifiers, file and folder names, database tables and
+  columns, API routes and fields, error types, comments, docstrings, documentation (`docs/`,
+  specs, this file, README) and commit messages.
+- **Only what a person reads in the product stays in <product language>**: interface text,
+  error messages (`detail`), PDFs, e-mails; also the screen URLs, prompts to the language model
+  that talk about documents in that language, and external data formats.
+- **Every domain name comes from `docs/glossary.md`** (domain term in <product language> → name in
+  code). A new term enters the glossary in the same commit that introduces it.
+- **Never renamed**: environment variables configured on the server (the settings field may have
+  another name and read the variable by alias, `Field(validation_alias="<VAR>")`; a new variable
+  comes with a safe default or with a notice to the server owner listing what to configure), CLI
+  commands and Makefile targets (only by agreement), past commits.
+- <If the project is still being migrated: what is already in English, what is not, and the
+  order of the migration.>
+
+## Where things are
 
 ```
-<árvore da raiz com uma linha por pasta>
+<root tree with one line per folder>
 ```
 
-## Comandos
+## Commands
 
-`make` sem alvo lista tudo.
+`make` with no target lists everything.
 
-| Comando | Faz |
+| Command | Does |
 |---|---|
-| `make lint` | ruff + teto de 30 linhas por função |
-| `make formato` | ruff format |
-| `make tipos` | mypy estrito |
-| `make docs` | cobertura e caminhos vivos de `docs/sistema/` |
-| `make teste` | pytest |
-| `make web-teste` | eslint + vitest + tsc |
+| `make lint` | ruff + function size cap + import boundaries |
+| `make format` | ruff format |
+| `make types` | strict mypy |
+| `make docs` | coverage and live paths of `docs/system/` |
+| `make test` | pytest |
+| `make web-test` | eslint + prettier check + tsc + vitest |
 | <...> | <...> |
 
-Teste de uma área: `<comando>`.
+Tests for one area: `<command>`.
 
-## Ambiente local
+## Local environment
 
-<Portas que são do usuário e não devem ser derrubadas, banco de dev, contas de teste, o que não
-rodar sem pedir.>
+<Ports that belong to the user and must not be taken down, dev database, test accounts, what not
+to run without asking.>
 
-## Regras do código
+## Code rules
 
-**Idioma**: <ex.: português; identificadores sem acento, prosa com acento>.
+**Lint and types**: <summary; details in
+`~/.claude/skills/project-standard/references/lint-and-types.md`>.
 
-**Lint e tipos**: <resumo; detalhes em `~/.claude/skills/padrao-de-projeto/referencias/lint-e-tipos.md`>.
+**Backend**: <layers, errors, settings, SQL, ...>
 
-**Back**: <camadas, erros, config, SQL, ...>
+**Frontend**: <API client, generated types, hook rules, 390 px, ...>
 
-**Front**: <cliente da API, tipos gerados, regras de hooks, 390 px, ...>
+## Tests
 
-## Testes
+<Pyramid, main fixtures, the "a bug comes with a test" rule, known broken tests.>
 
-<Pirâmide, fixtures principais, regra "bug vem com teste", testes conhecidamente quebrados.>
+## Workflow
 
-## Fluxo de trabalho
+1. Read the domain's `docs/system/` file.
+2. Change + test + documentation (+ glossary if there is a new term).
+3. Run only what you touched: `make lint types docs` + the area's tests.
+4. Commit <and push> on <branch>; conventional commit in English describing the behavior.
 
-1. Leia o `docs/sistema/` do domínio.
-2. Mudança + teste + documentação.
-3. Rode só o que mexeu: `make lint tipos docs` + testes da área.
-4. Commit <e push> em <branch>; conventional commit em português descrevendo o comportamento.
-
-**Mudança grande** (mais de ~15 arquivos ou mais de uma área): subagentes em paralelo por
-arquivos disjuntos (worktrees quando editam código existente); o principal integra e verifica.
+**Large change** (more than ~15 files or more than one area): subagents in parallel by disjoint
+files (worktrees when they edit existing code); the main agent integrates and verifies.
 
 ## Deploy
 
-<Onde e como; link para `docs/deploy-<paas>.md`.>
+<Where and how; link to `docs/deploy-<paas>.md`, and the list of environment variables the
+server must have.>

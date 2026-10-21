@@ -1,80 +1,107 @@
-# Deploy no Coolify
+# Deploying on Coolify
 
-O que precisa mudar num projeto que roda local com `docker-compose.yml` para subir no Coolify.
-Referência: `docker-compose-coolify.yml` e `docs/deploy-coolify.md` do Crivo.
+What needs to change in a project that runs locally with `docker-compose.yml` to deploy on
+Coolify. Reference: Crivo's `docker-compose-coolify.yml` and `docs/deploy-coolify.md`.
 
-## Por que um compose separado
+The variable names below are Crivo's (`AMBIENTE`, `MIGRAR_AO_SUBIR`, `COOKIES_SEGUROS`,
+`CAMINHO_*`): they are configured on the server and stay as they are. A new project names its
+variables in English from the start (`ENVIRONMENT`, `MIGRATE_ON_START`, `SECURE_COOKIES`,
+`*_PATH`).
 
-O compose local publica portas no host, tem senhas de dev com padrão e monta `./pastas`
-relativas. No Coolify isso abriria o banco para a internet, subiria com senha fraca e
-procuraria os dados num diretório que não existe. Em vez de condicionais, existe um
-`docker-compose-coolify.yml` próprio, e o topo dele lista as diferenças numeradas.
+## Environment variables on the server: never rename
 
-## As mudanças, uma a uma
+The **Environment Variables** tab is state that lives outside the repository. Whatever was typed
+there is a contract:
 
-| # | Local (`docker-compose.yml`) | Coolify (`docker-compose-coolify.yml`) | Por quê |
+- **Never rename or remove a variable that is configured on the server.** The next deploy reads
+  the new name, finds nothing and either starts with a default (wrong, silently) or refuses to
+  start. If the code's field changes name, it reads the old variable by alias
+  (`Field(validation_alias="SEGREDO_JWT")`, see `runtime.md`), and the compose file keeps passing
+  the old name.
+- **A new variable** comes in with a safe default (`${NEW_VAR:-default}` in the compose and a
+  default in `Settings`) or, if it has none, with an explicit notice to the server owner listing
+  what to configure (name, how to generate it, which service) before the deploy, and the
+  `docs/deploy-coolify.md` updated. A required variable (`:?`) added without notice makes the
+  deploy fail.
+- Commands typed in the container's terminal (CLI, seed) follow the same rule: change only by
+  agreement.
+
+## Why a separate compose file
+
+The local compose publishes ports on the host, has dev passwords with defaults and mounts
+relative `./folders`. On Coolify that would open the database to the internet, start with a weak
+password and look for the data in a directory that does not exist. Instead of conditionals, there
+is a dedicated `docker-compose-coolify.yml`, and its top lists the numbered differences.
+
+## The changes, one by one
+
+| # | Local (`docker-compose.yml`) | Coolify (`docker-compose-coolify.yml`) | Why |
 |---|---|---|---|
-| 1 | `ports: "${PORTA_DB:-5432}:5432"` em todo serviço | `expose: ["5432"]` (e `"8000"`, `"80"`) | O proxy do Coolify (Traefik) roteia pela rede interna do Docker. `ports` publica na interface do host: o Postgres ficaria aberto para a internet |
-| 2 | — | só o `web` recebe domínio (aba **Domains**), com `SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-}` no `environment` | O Caddy do `web` faz proxy de `/api/*` e `/health` para `api:8000`. Um domínio só: sem CORS, sem cookie cross-site. A variável `SERVICE_FQDN_<SERVICO>_<PORTA>` é como o Coolify sabe qual serviço/porta expor |
-| 3 | `POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crivo}` | `${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}` | Sem padrão: falta a variável, o deploy falha em vez de subir com senha de dev |
-| 4 | `SEGREDO_X: ${SEGREDO_X:?defina no .env}` | `${SEGREDO_X:?defina SEGREDO_X com 32+ bytes}` | A mensagem diz o requisito; a config do back recusa curto/de exemplo/repetido |
-| 5 | `AMBIENTE: ${AMBIENTE:-local}` | `AMBIENTE: producao` fixo | Liga as validações de produção (segredos, cookies) e o log em JSON |
-| 6 | `COOKIES_SEGUROS: ${COOKIES_SEGUROS:-false}` | `COOKIES_SEGUROS: "true"` | Cookie `Secure` atrás de HTTPS; a config recusa `false` em produção |
-| 7 | `make migrar` na mão | `MIGRAR_AO_SUBIR: "true"` | O entrypoint roda `alembic upgrade head` antes do uvicorn; no Coolify ninguém roda migração na mão |
-| 8 | `./acervo:/app/acervo:ro` | `${CAMINHO_ACERVO:-/data/<app>/acervo}:/app/acervo:ro` | Caminho absoluto no host, sobrescrevível. Dados grandes nunca vão na imagem nem no git |
-| 9 | — | `restart: unless-stopped` em todo serviço | Volta sozinho depois de queda ou reboot |
-| 10 | healthcheck sem `start_period` | `start_period: 40s` na `api`, `15s` no `web` | O build/primeira subida é lento; sem isso o Coolify marca como falho antes de subir |
-| 11 | `web` sem healthcheck | `wget -q --spider http://127.0.0.1:80/` | O Coolify só considera o deploy pronto com todos saudáveis. `wget` já existe no alpine; não instale curl |
-| 12 | parâmetros de memória fixos no `command` do Postgres | `shared_buffers=${PG_SHARED_BUFFERS:-512MB}` e `work_mem`/`maintenance_work_mem` menores | Ajustável pela RAM do servidor sem editar o arquivo |
-| 13 | uvicorn simples | `--proxy-headers --forwarded-allow-ips "*"` no `CMD` | Atrás de dois proxies (Traefik → Caddy), o back precisa ler `X-Forwarded-*` para saber que é HTTPS e o IP real |
+| 1 | `ports: "${PORTA_DB:-5432}:5432"` on every service | `expose: ["5432"]` (and `"8000"`, `"80"`) | Coolify's proxy (Traefik) routes through the internal Docker network. `ports` publishes on the host interface: Postgres would be open to the internet |
+| 2 | — | only `web` gets a domain (tab **Domains**), with `SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-}` in `environment` | `web`'s Caddy proxies `/api/*` and `/health` to `api:8000`. A single domain: no CORS, no cross-site cookie. The `SERVICE_FQDN_<SERVICE>_<PORT>` variable is how Coolify knows which service/port to expose |
+| 3 | `POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crivo}` | `${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}` | No default: if the variable is missing, the deploy fails instead of starting with a dev password |
+| 4 | `SEGREDO_X: ${SEGREDO_X:?set it in .env}` | `${SEGREDO_X:?set SEGREDO_X with 32+ bytes}` | The message states the requirement; the backend settings refuse short/example/repeated |
+| 5 | `AMBIENTE: ${AMBIENTE:-local}` | `AMBIENTE: producao` fixed | Turns on the production validations (secrets, cookies) and JSON logs |
+| 6 | `COOKIES_SEGUROS: ${COOKIES_SEGUROS:-false}` | `COOKIES_SEGUROS: "true"` | `Secure` cookie behind HTTPS; the settings refuse `false` in production |
+| 7 | `make migrar` by hand | `MIGRAR_AO_SUBIR: "true"` | The entrypoint runs `alembic upgrade head` before uvicorn; on Coolify nobody runs migrations by hand |
+| 8 | `./acervo:/app/acervo:ro` | `${CAMINHO_ACERVO:-/data/<app>/acervo}:/app/acervo:ro` | An absolute host path, overridable. Large data never goes in the image nor in git |
+| 9 | — | `restart: unless-stopped` on every service | Comes back on its own after a crash or reboot |
+| 10 | healthcheck without `start_period` | `start_period: 40s` on `api`, `15s` on `web` | The build/first start is slow; without it Coolify marks it as failed before it is up |
+| 11 | `web` without a healthcheck | `wget -q --spider http://127.0.0.1:80/` | Coolify only considers the deploy ready when everything is healthy. `wget` already exists on alpine; do not install curl |
+| 12 | fixed memory parameters in the Postgres `command` | `shared_buffers=${PG_SHARED_BUFFERS:-512MB}` and smaller `work_mem`/`maintenance_work_mem` | Adjustable to the server's RAM without editing the file |
+| 13 | plain uvicorn | `--proxy-headers --forwarded-allow-ips "*"` in the `CMD` | Behind two proxies (Traefik → Caddy), the backend must read `X-Forwarded-*` to know it is HTTPS and the real IP |
 
-O que **não** muda: Dockerfiles, `depends_on: condition: service_healthy`, volume nomeado do
-Postgres, nome do projeto (`name:`).
+What does **not** change: Dockerfiles, `depends_on: condition: service_healthy`, the Postgres
+named volume, the project name (`name:`), and the names of the variables already on the server.
 
-## Pré-requisitos no código (sem eles o compose não basta)
+## Prerequisites in the code (without them the compose is not enough)
 
-- **Config que recusa subir em produção** com segredo ausente, < 32 bytes, igual ao
-  `.env.example` ou repetido, e com `COOKIES_SEGUROS=false` (ver `runtime.md`).
-- **`/health`** na raiz da API que responde rápido e diz o estado de banco e dados (dado
-  opcional ausente aparece como `ausente`, não derruba o health).
-- **Entrypoint** `docker/entrypoint-api.sh` com `MIGRAR_AO_SUBIR` e `exec "$@"`.
-- **Caddyfile** no `web` com `handle /api/*` e `handle /health` → `reverse_proxy api:8000` e
-  fallback SPA (`try_files {path} /index.html`).
-- **Front com URL relativa** (`BASE = "/api/v1"`), nunca `http://localhost:8000` no código.
-- **Log JSON** em produção (o Coolify mostra stdout).
-- **CLI dentro da imagem** (`[project.scripts]`) para seed e admin pelo terminal do contêiner.
+- **Settings that refuse to start in production** with a secret that is missing, < 32 bytes,
+  equal to `.env.example` or repeated, and with insecure cookies (see `runtime.md`).
+- **`/health`** at the API root that answers fast and states the database and data status
+  (missing optional data shows as `missing`, it does not bring health down).
+- **Entrypoint** `docker/entrypoint-api.sh` with the migrate-on-start variable and `exec "$@"`.
+- **Caddyfile** in `web` with `handle /api/*` and `handle /health` → `reverse_proxy api:8000`
+  and the SPA fallback (`try_files {path} /index.html`).
+- **Frontend with a relative URL** (`BASE = "/api/v1"`), never `http://localhost:8000` in code.
+- **JSON logs** in production (Coolify shows stdout).
+- **CLI inside the image** (`[project.scripts]`) for seed and admin from the terminal.
 
-## Passo a passo no painel (vai em `docs/deploy-coolify.md` de cada projeto)
+## Step by step in the panel (goes in each project's `docs/deploy-coolify.md`)
 
-1. **Segredos** na máquina local: `openssl rand -hex 32` para cada segredo (diferentes),
-   `openssl rand -hex 16` para `POSTGRES_PASSWORD`.
-2. **Dados grandes** (se houver): empacotar (`tar -I 'zstd -T0 -3'`), `sha256sum`, servir com
-   `python3 -m http.server` + `cloudflared tunnel --url`, e no host (Coolify → Servers →
-   Terminal) `curl -L -C -` para `/data/<app>/...`, `sha256sum -c`, extrair.
-3. **New Resource → Docker Compose**, repositório e branch `main`, **Compose file** =
+1. **Secrets** on the local machine: `openssl rand -hex 32` for each secret (all different),
+   `openssl rand -hex 16` for `POSTGRES_PASSWORD`.
+2. **Large data** (if any): pack it (`tar -I 'zstd -T0 -3'`), `sha256sum`, serve with
+   `python3 -m http.server` + `cloudflared tunnel --url`, and on the host (Coolify → Servers →
+   Terminal) `curl -L -C -` to `/data/<app>/...`, `sha256sum -c`, extract.
+3. **New Resource → Docker Compose**, repository and branch `main`, **Compose file** =
    `/docker-compose-coolify.yml`.
-4. **Environment Variables**: `POSTGRES_PASSWORD`, os segredos, `CAMINHO_*` se fugir do
-   padrão, `PG_SHARED_BUFFERS`, chaves de API externas.
-5. **Domains** só no serviço `web`.
-6. **Deploy**. Migrations rodam sozinhas; a `api` só fica saudável com banco e dados.
-7. **Seed** pelo terminal do contêiner `api`: carga de dados e
-   `<cli> admin criar --email ...` (senha digitada, nunca por variável).
-8. **Operar**: `https://dominio/health`, logs no painel, backup só do volume do Postgres,
-   atualizar = push na `main` (o Coolify reconstrói e migra).
+4. **Environment Variables**: `POSTGRES_PASSWORD`, the secrets, the data path variables if they
+   differ from the default, `PG_SHARED_BUFFERS`, external API keys. Keep this list in the doc: it
+   is what the server owner checks when a deploy brings a new variable.
+5. **Domains** only on the `web` service.
+6. **Deploy**. Migrations run on their own; `api` only becomes healthy with database and data.
+7. **Seed** from the `api` container terminal: data load and the CLI's admin creation command
+   with `--email ...` (password typed, never through a variable).
+8. **Operate**: `https://domain/health`, logs in the panel, backup only of the Postgres volume,
+   update = push to `main` (Coolify rebuilds and migrates).
 
-## Checklist para levar um projeto ao Coolify
+## Checklist to take a project to Coolify
 
-- [ ] `docker-compose-coolify.yml` com as 13 mudanças acima e o comentário de topo
-- [ ] `.env.example` com seção `# --- Coolify / producao ---` (variáveis `CAMINHO_*`, `PG_*`)
-- [ ] config recusa produção insegura + teste disso
-- [ ] `/health`, entrypoint com migração, Caddyfile com proxy
-- [ ] `docs/deploy-coolify.md` com o passo a passo e tamanhos (disco/RAM) esperados
-- [ ] README aponta para o doc de deploy
+- [ ] `docker-compose-coolify.yml` with the 13 changes above and the top comment
+- [ ] `.env.example` with a `# --- Coolify / production ---` section (data path and `PG_*`
+      variables)
+- [ ] settings refuse insecure production + a test for it
+- [ ] `/health`, entrypoint with migration, Caddyfile with proxy
+- [ ] `docs/deploy-coolify.md` with the step by step, the variable list and the expected sizes
+      (disk/RAM)
+- [ ] no variable already on the server renamed or removed; new ones with a default or announced
+- [ ] the README points to the deploy doc
 
-## Mudança grande
+## Large change
 
-Se levar o projeto ao Coolify exigir mexer em muito código (config de segredos, `/health`,
-URLs absolutas no front espalhadas, CLI inexistente), divida por área entre subagentes em
-worktrees, como descrito em `lint-e-tipos.md` → "Quando usar multiagente": o agente principal
-escreve o compose e o doc; subagentes cuidam de back (config + health + entrypoint) e front
-(URLs relativas + Caddyfile) em paralelo.
+If taking the project to Coolify requires touching a lot of code (secret settings, `/health`,
+absolute URLs scattered in the frontend, a missing CLI), split it by area between subagents in
+worktrees, as described in `lint-and-types.md` → "When to use multiple agents": the main agent
+writes the compose and the doc; subagents take care of the backend (settings + health +
+entrypoint) and the frontend (relative URLs + Caddyfile) in parallel.

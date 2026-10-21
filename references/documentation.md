@@ -1,92 +1,94 @@
-# Documentação do sistema
+# System documentation
 
-Todo projeto tem três camadas de texto, cada uma com um papel:
+Every project has three layers of text, each with a role:
 
-| Onde | Papel | Quando muda |
+| Where | Role | When it changes |
 |---|---|---|
-| `CLAUDE.md` (raiz) | instruções para quem mexe no código (pessoa ou agente): comandos, estrutura, regras, fluxo de trabalho, armadilhas do ambiente | comando, convenção, estrutura ou armadilha nova |
-| `docs/sistema/` | **como o sistema funciona hoje**, um arquivo por domínio | **toda** mudança de comportamento, rota, tabela, fluxo, regra, variável ou arquivo |
-| `specs/NN-nome.md` | o que foi pedido e por quê, antes de construir | spec nova; a antiga não é reescrita, a nova diz "isto altera a spec NN" |
+| `CLAUDE.md` (root) | instructions for whoever touches the code (person or agent): commands, structure, rules, workflow, environment pitfalls | a new command, convention, structure or pitfall |
+| `docs/system/` | **how the system works today**, one file per domain | **every** change of behavior, route, table, flow, rule, variable or file |
+| `specs/NN-name.md` | what was asked and why, before building | a new spec; the old one is not rewritten, the new one says "this alters spec NN" |
 
-Mais `README.md` (o que é, como rodar, tabela de specs, link para `docs/sistema/`) e
-`docs/deploy-<paas>.md`.
+Plus `docs/glossary.md` (domain term in the product's language → name in code, see
+`specs-and-commits.md`), `README.md` (what it is, how to run, specs table, link to
+`docs/system/`) and `docs/deploy-<paas>.md`. All of it in English.
 
-## Regras
+## Rules
 
-1. **Mudou o sistema, mudou a documentação, no mesmo commit.** Rota, tabela, fluxo, regra,
-   variável de ambiente, arquivo novo/removido/renomeado → o arquivo do domínio em
-   `docs/sistema/`. Domínio novo → arquivo novo + linha no índice.
-2. **Ler antes de mexer.** Antes de alterar um domínio, ler o arquivo dele em `docs/sistema/`.
-3. **Sempre arrumar o `.md`.** Ao passar por qualquer arquivo de documentação (inclusive
-   `CLAUDE.md` e `README.md`), corrigir o que estiver desatualizado, duplicado ou confuso,
-   mesmo fora da tarefa. Documentação errada é pior que ausente.
-4. **O `CLAUDE.md` se atualiza também**: Makefile com alvo novo, convenção nova, armadilha
-   descoberta → entra no mesmo commit.
-5. **Código diverge da spec → `docs/sistema/` registra** em "Pontos de atenção" (a spec fica
-   como histórico).
-6. Prosa com acento; identificadores e caminhos exatamente como no código, entre crases,
-   relativos à raiz.
+1. **The system changed, the documentation changes, in the same commit.** Route, table, flow,
+   rule, environment variable, new/removed/renamed file → the domain's file in `docs/system/`.
+   New domain → new file + a line in the index. New domain term → a line in the glossary.
+2. **Read before touching.** Before changing a domain, read its file in `docs/system/`.
+3. **Always tidy the `.md`.** When passing through any documentation file (including
+   `CLAUDE.md` and `README.md`), fix what is outdated, duplicated or confusing, even outside the
+   task. Wrong documentation is worse than none.
+4. **`CLAUDE.md` updates too**: a Makefile target, a new convention, a discovered pitfall → it
+   goes in the same commit.
+5. **Code diverges from the spec → `docs/system/` records it** under "Points of attention" (the
+   spec stays as history).
+6. Identifiers and paths exactly as in the code, between backticks, relative to the root.
+   Product text quoted in the docs (a button label, an error `detail`) stays in the product's
+   language.
 
-## Garantia: `make docs`
+## Guarantee: `make docs`
 
-`ferramentas/cobertura_da_documentacao.py` (modelo em `modelos/ferramentas/`), no `make docs`
-e no CI, logo depois do tamanho de função:
+`tools/docs_coverage.py` (template in `templates/tools/`), in `make docs` and in CI, right after
+the function size check:
 
-- **DOC001 — sem documentação**: todo caminho casado por `exigir` precisa aparecer entre
-  crases em algum `.md` de `docs/sistema/` (diretório conta se ele ou algo dentro aparece);
-- **DOC002 — caminho morto**: todo caminho do repo citado entre crases existe, e todo
-  `tests/x.py::nome` aponta para um `def nome` real. Glob, `<placeholder>` e `...` são
-  ignorados.
+- **DOC001 — undocumented**: every path matched by `require` must appear between backticks in
+  some `.md` of `docs/system/` (a directory counts if it or something inside it appears);
+- **DOC002 — dead path**: every repository path cited between backticks exists, and every
+  `tests/x.py::name` points to a real `def name`. Globs, `<placeholder>` and `...` are ignored.
 
 ```toml
-[tool.cobertura-da-documentacao]
-documentacao = "docs/sistema"
-raizes = ["api", "pipeline", "web", "tests", "ferramentas", "migrations", "docker", "docs", "specs"]
-exigir = [
-    "api/routers/*.py",
-    "api/services/*",
-    "api/*/",
+[tool.docs-coverage]
+docs = "docs/system"
+roots = ["api", "pipeline", "web", "tests", "tools", "migrations", "docker", "docs", "specs"]
+require = [
+    "api/modules/*/",
+    "api/infra/*/",
+    "api/core/*.py",
     "pipeline/*.py",
-    "web/src/rotas/*.tsx",
+    "web/src/routes/*.tsx",
 ]
 ```
 
-Ajuste `exigir` às pastas de cada projeto: routers, services, pacotes, rotas do front.
+Adjust `require` to each project's folders: modules, infra packages, pipeline, frontend routes.
 
-## Estrutura de `docs/sistema/`
+## Structure of `docs/system/`
 
 ```
-docs/sistema/
-├── README.md        índice (Arquivo | Domínio | Spec) + o modelo abaixo + a regra de atualização
-├── visao-geral.md   arquitetura, ciclo de vida, config, erros, log, banco, migrations, CLI, mapa dos domínios
-├── <dominio>.md     um por domínio (agrupe domínios pequenos)
-└── front.md         stack, rotas, cliente da API, hooks, componentes, identidade visual, testes
+docs/system/
+├── README.md        index (File | Domain | Spec) + the template below + the update rule
+├── overview.md      architecture, lifecycle, settings, errors, logging, database, migrations, CLI, domain map
+├── <domain>.md      one per domain (group small domains)
+└── frontend.md      stack, routes, API client, hooks, components, visual identity, tests
 ```
 
-Modelo de cada arquivo de domínio (seção que não se aplica sai):
+Template for each domain file (a section that does not apply is dropped):
 
 ```markdown
-# <Domínio>
-Um parágrafo: o que é para quem usa e a spec de origem.
-## Onde está          tabela Arquivo | Papel (back, pipeline, front, testes)
-## Dados              tabelas e a migration que as criou; arquivos em disco; cache
-## Rotas              tabela Método e caminho | O que faz | Erros (tipo do problem+json)
-## Como funciona      fluxos principais, em ordem, com nome de função
-## Regras e garantias cada invariante e o teste que a garante (`tests/x.py::nome`)
-## Configuração       variáveis de ambiente do domínio
-## Pontos de atenção  armadilhas, decisões não óbvias, divergências da spec
+# <Domain>
+One paragraph: what it is for whoever uses it and the spec it came from.
+## Where it is         table File | Role (backend, pipeline, frontend, tests)
+## Data                tables and the migration that created them; files on disk; cache
+## Routes              table Method and path | What it does | Errors (problem+json type)
+## How it works        main flows, in order, with function names
+## Rules and guarantees each invariant and the test that guarantees it (`tests/x.py::name`)
+## Settings            the domain's environment variables
+## Points of attention pitfalls, non-obvious decisions, divergences from the spec
 ```
 
-Tamanho: 100–300 linhas por arquivo, denso. Descreve o que o **código** faz.
+Size: 100–300 lines per file, dense. It describes what the **code** does.
 
-## Criar a documentação num projeto que não tem
+## Creating the documentation in a project that has none
 
-1. Escrever `docs/sistema/README.md` (índice com a partição em domínios + modelo) primeiro.
-2. Escrever `visao-geral.md` e um arquivo por domínio. Com mais de ~4 domínios, **um
-   subagente por grupo de domínios em paralelo** (arquivos novos e disjuntos, sem worktree):
-   cada um recebe a lista exata de arquivos de código que cobre, lê o código (não só as
-   specs), segue o modelo e não edita nada além dos seus `.md`.
-3. Ligar `make docs` + CI, rodar, corrigir DOC001/DOC002.
-4. Escrever ou atualizar o `CLAUDE.md` (modelo em `modelos/CLAUDE.md`) com a seção
-   Documentação, e o `README.md` com o link para `docs/sistema/`.
-5. Um commit `docs(sistema): ...`.
+1. Write `docs/system/README.md` (index with the partition into domains + template) first.
+2. Write `overview.md` and one file per domain. With more than ~4 domains, **one subagent per
+   group of domains in parallel** (new, disjoint files, no worktree): each one gets the exact
+   list of code files it covers, reads the code (not just the specs), follows the template and
+   edits nothing besides its own `.md` files.
+3. Wire `make docs` + CI, run it, fix DOC001/DOC002.
+4. Write the glossary (`docs/glossary.md`) from the domain terms that appeared.
+5. Write or update `CLAUDE.md` (template in `templates/CLAUDE.md`) with the Documentation and
+   Language sections, and `README.md` with the link to `docs/system/`.
+6. One commit `docs(system): ...`.
