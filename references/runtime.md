@@ -96,6 +96,29 @@ nobody knows why.
 - Test: the sixth wrong attempt gets 429 even with the right password; after the window, it gets
   in.
 
+## Sessions and logout
+
+A JWT is valid until it expires: deleting the cookie only forgets it in that browser, and a copy
+(stolen, or left in another tab) keeps working. So ending a session is a server decision:
+
+- **Session version** on the user (`session_version`, claim `sv`): changing the password or
+  deactivating the account bumps it, and every token of the account dies, refresh included. The
+  password-change route reissues the pair so whoever changed it stays signed in.
+- **Session id** (claim `sid`): a new UUID on login, the same for the access/refresh pair and kept
+  across refreshes. Logout writes the `sid` in a `revoked_sessions` table with `expires_at` = now +
+  refresh lifetime (after that the token dies on its own; the expired rows are deleted on each
+  logout). Only that device leaves; the others stay in.
+- **One check** (`is_alive(session, user, claims)`): exists, active, same version, `sid` not
+  revoked. The current-user dependency and the refresh route use the same function; it costs one
+  primary-key lookup per request, next to the user's.
+- Logout reads the refresh cookie first (the access may have expired while the refresh would bring
+  it back) and answers 204 even without a valid token. A token from before `sid` existed cannot
+  be revoked alone: its logout bumps the version (every device, once).
+- Do not bump the version on logout to save the table: it signs out every device of the account,
+  and the e2e that clicks "log out" signs out the other tests that use the same account.
+- Tests: a copy of the tokens taken before logout gets 401 (access and refresh), a second client
+  of the same account stays in, logout after a refresh still revokes.
+
 ## Errors (`api/core/errors.py`)
 
 - A single format: `application/problem+json` (RFC 9457: `type`, `title`, `status`, `detail`).

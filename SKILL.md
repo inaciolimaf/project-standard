@@ -130,6 +130,8 @@ Files ready to copy: `templates/tools/function_size.py` (function and file size 
 - [ ] module root holds only contract files; logic in subfolders per subdomain, at most 8 files
       per folder
 - [ ] login with an attempt limit (429 + `Retry-After`)
+- [ ] logout revokes the session on the server (not only the cookies); password change and
+      deactivation end every session
 - [ ] comments: module docstring only with a decision/pitfall; no separators nor a header that
       repeats the path
 - [ ] pytest with `asyncio_mode = "auto"`, the project's own `DeprecationWarning` becomes an error
