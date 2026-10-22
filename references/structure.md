@@ -186,6 +186,7 @@ web/src/
 
 | File | Role |
 |---|---|
+| `src/router.tsx` | the route list and `createAppRouter(queryClient, history?)`: 404 at the root, `defaultErrorComponent` and `defaultPendingComponent` (see `lint-and-types.md`, "The router's error and loading screens") |
 | `src/api/client.ts` | single `fetch`, single `readProblem()` for errors, `BASE = "/api/v1"` |
 | `src/api/types.ts` | **generated** from `openapi.json` (do not edit, out of lint) |
 | `src/styles.css` | color tokens with light and dark values (`:root[data-theme=...]`) + `@theme inline`; `@custom-variant dark` so `dark:` follows the app's theme, not the system's |

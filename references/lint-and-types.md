@@ -268,6 +268,22 @@ query={q}>{(data) => ...}</QueryView>` (loading, error with "try again" and data
 `palettes.ts` (content colors). A raw `<button>` only for a special control (option, selector,
 cell).
 
+### The router's error and loading screens
+
+`createAppRouter` sets `defaultErrorComponent` and `defaultPendingComponent` once, so no route
+falls into TanStack Router's default screen ("Something went wrong!", in English, with the stack
+message). The error component (`RouteError` in the shell module) reuses `<ErrorView>`: the API's
+`detail` when the error is the client's `ApiError`, a fixed message in the product's language
+otherwise (a render crash carries a developer message). Its "try again" calls
+`queryClient.resetQueries({ type: "inactive" })` before the boundary's `reset()`: the crashed
+screen's queries are inactive once it unmounts, and re-rendering the same bad response would crash
+again, while the shell's active queries stay untouched. The pending component is `<Loading>`; it
+only shows for a route with a loader or a lazy component, which is why it has to exist before the
+routes become lazy. No error boundary per route; a query error inside a screen is still
+`<QueryView>`'s. The screen tests build the app through the same `createAppRouter(queryClient,
+history)`, so they run with these defaults, and one of them makes a screen crash with a malformed
+response and checks the message and the recovery.
+
 ### Patterns the lint enforces
 
 - A callback used inside `useEffect` comes in through a `ref` (or `useEvent`), not the dependency
@@ -275,7 +291,9 @@ cell).
 - `eslint-disable-next-line react-hooks/exhaustive-deps` only with a comment above saying why the
   omitted dependency is stable (Crivo has two such cases).
 - A query with a filter in its key does **not** use `placeholderData`; "keep the previous one
-  while loading" is `isFetching` + the old list dimmed.
+  while loading" is `isFetching` + the old list dimmed. When the screen needs the last answer of a
+  key that changed, the component keeps it in its own state (`if (q.data && q.data !== last)
+  setLast(q.data)`) instead of passing it off as the query's data.
 
 ## 6. TypeScript (`tsc -b`)
 

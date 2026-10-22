@@ -103,8 +103,9 @@ markers = ["integration: needs Postgres (test database URL or testcontainers)"]
      edge cases. These are the cheapest tests there are.
   2. **Isolated component**: `render(<X .../>)` + `userEvent`; for a component that uses
      `Link`/`useNavigate`, `vi.mock("@tanstack/react-router")`.
-  3. **Whole screen**: `tests/helpers/screen.tsx` with the real router, memory history and the
-     fake API:
+  3. **Whole screen**: `tests/helpers/screen.tsx` with the real router (built by the app's own
+     `createAppRouter(queryClient, history)`, so the tests run the production defaults: error and
+     loading screens, 404), memory history and the fake API:
      ```ts
      const api = fakeApi({ "GET /questions": { items: [], total: 0 } });   // METHOD /path without /api/v1
      const { user } = await renderScreen("/marcadas");                      // the screen URL stays in Portuguese

@@ -155,6 +155,9 @@ Files ready to copy: `templates/tools/function_size.py` (function and file size 
 - [ ] prettier (`printWidth` 110) + `eslint-config-prettier`; format check in CI
 - [ ] `<QueryView>`, `<Card>`, `Button` (`link`/`icon`), `formatting.ts`, `useShortcuts`,
       `palettes.ts`; tokens with light/dark and `@custom-variant dark`
+- [ ] router with `defaultErrorComponent` (the project's error screen, in the product's language,
+      with "try again") and `defaultPendingComponent` (`<Loading>`); the screen tests use the same
+      `createAppRouter`
 - [ ] API types generated (`openapi-typescript`), generated file out of lint, CI checks the diff
 - [ ] Vitest + Testing Library (jsdom), `tests/helpers/screen.tsx` (`renderScreen`/`fakeApi`),
       a test for every screen with logic, **coverage ≥ 60%** in CI
