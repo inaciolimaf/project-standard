@@ -19,6 +19,25 @@ Crivo's numbers (Oct/2026) to calibrate the proportion: ~200 unit, ~170 integrat
     └──────────────────────────────┘
 ```
 
+## Backend coverage
+
+`pytest-cov` measuring the application packages (`[tool.coverage.run] source = ["api", "pipeline"]`)
+and a floor in `pyproject.toml`:
+
+```toml
+[tool.coverage.report]
+# Floor, not target: below what the suite already covers, so it only fails when a change arrives
+# without tests. Raise it when the real number rises.
+fail_under = 80
+skip_covered = true
+show_missing = true
+```
+
+`fail_under` only acts when the run has `--cov`: CI runs `pytest -q --cov`, and the Makefile has a
+coverage target that does the same. The plain test target stays without it (faster while
+iterating). The floor is the measured number minus a margin (Crivo: 85% measured, 80% floor), never
+a wish: a floor above reality makes the CI red on the day it is turned on.
+
 ## Unit — `tests/unit/test_<subject>.py`
 
 - No database, no network, no disk outside `tmp_path`.

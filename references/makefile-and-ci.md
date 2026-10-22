@@ -22,6 +22,7 @@ them in English; an existing project keeps the names people already type** (oper
 | Database | `migrate` | `migrar` | `uv run alembic upgrade head` |
 | | `<load>` | `<carga>` | `migrate` as a dependency; `ARGS=` passes flags through |
 | Quality | `test` | `teste` | `<TEST_DB_VAR>=$(TEST_DB_URL) uv run pytest` |
+| | `coverage` | `cobertura` | the same with `--cov`; fails below the `fail_under` of `pyproject.toml` |
 | | `lint` | `lint` | `ruff check .` + `ruff format --check .` + `python -m tools.function_size` + `lint-imports` (the same as CI: local does not pass where CI breaks) |
 | | `boundaries` | `fronteiras` | only `lint-imports` (layers, public interface, no cycles) |
 | | `format` | `formato` | `ruff format .` |
@@ -57,7 +58,7 @@ First line: a one-line comment saying what runs. `on: push: [main]` + `pull_requ
 4. `lint-imports`
 5. `python -m tools.docs_coverage`
 6. `mypy`
-7. `pytest -q` with the test database URL
+7. `pytest -q --cov` with the test database URL (the backend coverage floor fails here)
 8. contract: generate `openapi.json`, `npm ci`, the types script,
    `git diff --exit-code -- src/api/types.ts`
 

@@ -134,6 +134,8 @@ Files ready to copy: `templates/tools/function_size.py` (function and file size 
       deactivation end every session
 - [ ] comments: module docstring only with a decision/pitfall; no separators nor a header that
       repeats the path
+- [ ] backend coverage floor (`fail_under` in `pyproject.toml`, `pytest --cov` in CI and a
+      coverage target)
 - [ ] pytest with `asyncio_mode = "auto"`, the project's own `DeprecationWarning` becomes an error
 - [ ] `tests/unit/`, `tests/integration/` (marker `integration`), `tests/golden/`
 - [ ] autouse fixture that isolates the environment (no test reads the machine's `.env`)
