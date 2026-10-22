@@ -370,6 +370,15 @@ fix it alone in sequence: split it between subagents in worktrees**.
   test database URL pointing to it, dropped at the end): the fixture that migrates runs
   `downgrade base` at the end of the session, and with two agents on the same database one drops
   the other's schema mid-suite — random failures that look like bugs and are not.
+- **A worktree starts from the last pushed commit, not from local `main`.** When the main agent
+  holds unpushed commits (it integrates and pushes once at the end), every subagent's first step
+  is `git reset --hard main` (or `git merge main` if it already has work), and the brief says so.
+  Otherwise the agent works on an old tree and its result conflicts with everything. Keep shared
+  context files somewhere that survives a restart, and have agents commit after each file: a
+  stopped agent's uncommitted work dies with its worktree.
+- Do not keep integrating while you also remove a finished agent's worktree: a background fork of
+  that agent may still be writing there, and git commands run from a deleted worktree path fall
+  through to the main checkout.
 - A worktree has no `node_modules` nor `.venv`: `ln -s "$MAIN/web/node_modules" web/node_modules`
   and `uv sync`. Gitignored files the tests need (`.env`) are copied from the main checkout.
 - **Partition by file, never by rule**: each subagent gets a disjoint set of folders/files (e.g.
