@@ -11,4 +11,3 @@ When one is resolved, move the decision into the right reference and delete it f
 | 8 | Python tests outside mypy | `pyproject.toml` | decide: include `tests` with overrides or keep them out on purpose |
 | 9 | The `integration` marker exists but there is no target to run only unit tests | `Makefile` | a unit-only target: `pytest -m "not integration"` |
 | 11 | No dependency audit (`pip-audit`, `npm audit`) nor Dependabot | CI | weekly job |
-| 12 | Crivo's code is still in Portuguese (identifiers, tables, API, docs) | whole repository | convert following `SKILL.md` → step 6; the glossary is already in `docs/glossary.md` |
