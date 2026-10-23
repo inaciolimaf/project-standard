@@ -69,6 +69,63 @@ nobody knows why.
 - Guarantee of the rule: `tests/unit/test_architecture.py` walks the `ast` of `api/` and fails if
   `commit()` appears outside `core/db.py` (with a temporary list while the migration is ongoing).
 
+## The event loop never blocks
+
+A uvicorn worker has **one** event loop serving every request, the health check included. A
+blocking call inside an `async def` stops all of them while it waits. If it waits for something
+only the loop can release, it never returns, and since no process dies nothing restarts.
+
+What happened (a school canteen, 2026-10-23): the payment webhook was an `async def` running
+synchronous SQLAlchemy and a synchronous `httpx` call. It waited on a `SELECT ... FOR UPDATE`
+held by the parent's polling request; that request's commit needed the loop the webhook was
+holding. Postgres saw no deadlock (one side was idle, waiting for its client), the health check
+failed, the proxy took the machine out of rotation, and the site stayed down for 1h34. One time
+in 212 payments: the race was rare, the freeze was certain once it happened.
+
+- Routes and dependencies are `async def` and **every** I/O is awaited: `AsyncSession`,
+  `httpx.AsyncClient`, `asyncio.sleep`, `anyio` files.
+- A library with only a synchronous API (an SDK, a CPU-heavy parse): `await
+  asyncio.to_thread(fn, ...)`. Never call it directly from an `async def`.
+- A project on a **synchronous** session (`sqlalchemy.orm.Session`) writes its routes as `def`:
+  FastAPI runs them in a thread. `async def` there only for a route whose whole body is
+  `await` and that touches no session. When in doubt, `def`: the worst case is one more thread.
+- More workers do not fix it: they only lower the chance that both requests land on the same
+  loop, and a frozen worker behind a healthy one hides the failure from the health check.
+- Guarantee: ruff `ASYNC` (blocking HTTP, `time.sleep`, `open`, `subprocess` in `async def`).
+  Ruff does not see a synchronous ORM call, so `tests/unit/test_architecture.py` fails if `api/`
+  imports `sqlalchemy.orm.Session` or `create_engine` (exceptions listed with a reason); a
+  synchronous-session project instead fails on an `async def` route or dependency that takes a
+  `Session` parameter.
+
+## No wait without a deadline
+
+Every wait has a limit, so a stuck pair of requests fails in seconds with a 500 instead of
+holding the site until someone restarts it.
+
+- **HTTP**: every client with an explicit `timeout` (`httpx.AsyncClient(timeout=10)`); ruff
+  `S113` flags a call without one.
+- **Database**: the engine sets them on every connection, never left at Postgres' `0` (forever):
+
+  ```python
+  engine = create_async_engine(
+      settings.database_url,
+      connect_args={"server_settings": {  # psycopg: {"options": "-c lock_timeout=10s -c ..."}
+          "lock_timeout": "10s",
+          "statement_timeout": "30s",
+          "idle_in_transaction_session_timeout": "60s",
+      }},
+  )
+  ```
+
+  `lock_timeout` shorter than a request is willing to wait; `idle_in_transaction_session_timeout`
+  longer than the slowest external call made inside a transaction. A migration or bulk job that
+  needs more raises it for its own transaction with `SET LOCAL`, never globally.
+- **Inside Python**: locks, queues, semaphores and `await`s on other services wrapped in
+  `asyncio.timeout(...)`.
+- Guarantee: an integration test opens a session through the app's own factory and asserts
+  `SHOW lock_timeout`, `SHOW statement_timeout` and `SHOW idle_in_transaction_session_timeout`
+  are not `0`. Removing the `connect_args` fails it.
+
 ## SQL: only through the query builder
 
 - Every query is built with SQLAlchemy (ORM or Core): `select`, `insert`, `update`, `delete`,

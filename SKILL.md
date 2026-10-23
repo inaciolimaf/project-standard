@@ -125,6 +125,10 @@ Files ready to copy: `templates/tools/function_size.py` (function and file size 
 - [ ] modular monolith: `api/core`, `api/infra`, `api/modules/<domain>` with a public interface
       in `__init__.py`, events between modules, models per module; `import-linter` in `make lint`
 - [ ] unit of work (only the session dependency commits), `get_owned`, router without SQL
+- [ ] nothing blocks the event loop: every I/O awaited, sync-only libraries through
+      `asyncio.to_thread`, ruff `ASYNC` on, architecture test against the synchronous `Session`
+- [ ] no wait without a deadline: HTTP `timeout`, `lock_timeout` / `statement_timeout` /
+      `idle_in_transaction_session_timeout` on every connection, checked by a test
 - [ ] SQL only through the query builder (no `text()` nor SQL strings; exceptions listed with a
       reason)
 - [ ] module root holds only contract files; logic in subfolders per subdomain, at most 8 files

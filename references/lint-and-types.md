@@ -39,7 +39,7 @@ src = ["."]
 exclude = ["web", "migrations/versions", <large data: "corpus", "cache">]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ANN", "S", "PLR0913"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ANN", "S", "ASYNC", "PLR0913"]
 ignore = ["ANN401", "RUF001", "RUF002", "RUF003", "RUF012", "S101", "S311"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -72,6 +72,7 @@ has its own lint.
 | **RUF** | ruff's own rules | assorted | `RUF005` list concatenation becomes unpacking, `RUF010` explicit conversion in an f-string, `RUF100` useless `noqa` |
 | **ANN** | flake8-annotations | every function with annotated arguments and return (matches strict mypy) | `ANN001` argument without type, `ANN201` return without type |
 | **S** | flake8-bandit | security | `S608` SQL built with an f-string, `S105/S106` literal password, `S307` `eval`, `S603/S607` subprocess, `S113` request without timeout, `S324` weak hash |
+| **ASYNC** | flake8-async | nothing blocks the event loop (`runtime.md` → "The event loop never blocks") | `ASYNC210` blocking HTTP call (`httpx.get`, `requests`) in `async def`, `ASYNC251` `time.sleep`, `ASYNC230` `open()`, `ASYNC221` `subprocess.run`, `ASYNC109` an `async def` with its own `timeout` parameter instead of `asyncio.timeout` |
 | **PLR0913** | pylint | at most **7 arguments** (`max-args = 7`) | a function with 8+ parameters — group them in a dataclass/DTO |
 
 ### Ignored on purpose
