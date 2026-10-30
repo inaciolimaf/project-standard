@@ -22,7 +22,7 @@ Budgets: main action per screen, when the alarm colour may appear.
 
 ## 4. Type
 
-Faces, chosen by the user on a real screen. The sizes. Where figures are tabular.
+Faces, chosen by the user on a real screen (no Inter). The sizes. Where figures are tabular.
 
 ## 5. Themes
 

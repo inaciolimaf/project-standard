@@ -57,9 +57,10 @@ cards in a grid, four KPI tiles on top, a purple gradient, an icon list as an ad
 on every row, small grey text everywhere, a dark theme that is the light one inverted, an entrance
 animation on everything.
 
-Those guides also list Inter as an overused face. Crivo keeps it for the interface on purpose: the
-character comes from the display face and the skeleton. A neutral text face is fine, a neutral everything
-is not.
+**No Inter in a new project.** The same goes for the other faces those guides name as worn out: Roboto,
+Arial, Poppins, Montserrat, Space Grotesk, Playfair Display and DM Serif Display. Crivo keeps Fraunces +
+Inter as its own decision, an exception that does not spread. A text face may be quiet, but it is chosen
+for the product, not left as the default.
 
 ## Own components, on purpose
 

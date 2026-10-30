@@ -6,13 +6,16 @@ description: Inácio's engineering standard for Python (FastAPI + uv) projects w
 # Project standard
 
 Extracted from Crivo (the author's exam-question system, the living reference). This skill lives
-in the repository `github.com/inaciolimaf/project-standard`; Crivo keeps a synced copy in
-`.claude/skills/project-standard/`. When a detail is missing here and you are in Crivo, its
+in `skills/project-standard/` of the repository `github.com/inaciolimaf/project-standard`, next to
+`frontend-standard`; Crivo keeps a synced copy of both in `.claude/skills/`. When a detail is missing here and you are in Crivo, its
 corresponding file is the source.
 
 Code examples use Crivo's English names (from its `docs/glossary.md`). Crivo's Makefile targets
 (`make teste`, `make tipos`...), CLI commands and environment variables (`SEGREDO_JWT`,
 `AMBIENTE`...) are in Portuguese on purpose — see the operations rule below.
+
+**Frontend work also uses the `frontend-standard` skill.** The frontend items here are kept so this
+skill works alone. Where the two disagree on a frontend subject, `frontend-standard` wins.
 
 ## Principles (they apply to everything below)
 
@@ -198,9 +201,9 @@ the affected `docs/system/` files. If the change is not applied in code yet, not
 `references/gaps.md`. A large change across many files: subagents in worktrees, one per area,
 and one commit per area.
 
-**Where to edit and how to sync.** The skill's source is the repository clone in
-`~/.claude/skills/project-standard/`: edit there, commit and push in that repository
-(`git -C ~/.claude/skills/project-standard ...`). Then, in each project that keeps a copy (Crivo,
-in `.claude/skills/project-standard/`), run `make skill` — it copies the clone's version into the
-project — and commit it together with the code change. Never edit the project's copy directly:
-it gets overwritten.
+**Where to edit and how to sync.** The source is the repository clone, in the folder named by
+`SKILL_FONTE` (see the repository's README); `~/.claude/skills/<name>` is a symlink to
+`skills/<name>/` inside it. Edit there, commit and push in that repository. Then, in each project
+that keeps a copy (Crivo, in `.claude/skills/`), run `make skill` — it copies every skill from the
+clone into the project — and commit it together with the code change. Never edit the project's
+copy directly: it gets overwritten. A frontend rule kept in both skills is changed in both.

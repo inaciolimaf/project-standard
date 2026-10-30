@@ -10,7 +10,9 @@ sources (WCAG 2.2, web.dev, framework docs). Crivo is the living reference, not 
 rules are general, its look is not.** Do not copy the exam-sheet identity into another product.
 
 This skill owns how screens are designed and built. `project-standard` owns folders above `web/`,
-Makefile, CI, Docker and the backend contract.
+Makefile, CI, Docker and the backend contract. It also repeats the frontend basics (stack, eslint, test
+setup) so that it works alone. Where the two disagree on a frontend subject, this skill wins, and a rule
+kept in both is changed in both.
 
 ## Principles
 
@@ -34,12 +36,12 @@ Makefile, CI, Docker and the backend contract.
 |---|---|
 | The token system and its naming roles | The palette and how many inks it has |
 | Two themes, each designed on its own | What the dark theme is (Crivo: a chalkboard) |
-| A type scale of about five sizes, tabular figures | The typefaces (the user picks them on a real screen) |
+| A type scale of about five sizes, tabular figures; no Inter in a new project | The typefaces (the user picks them on a real screen) |
 | One root skeleton component per screen, enforced by a test | What that skeleton is (Crivo: a printed document) |
 | Motion rules: what may animate, reduced motion, tokens | The material of the motion, and how much of it |
 | Accessibility (`references/accessibility.md`) | Nothing: this is not negotiable by identity |
 | Performance budgets (`references/performance.md`) | The numbers, only if the product justifies a change |
-| The stack, the module boundaries, the shared states | Which paper objects, mascots or signatures exist |
+| The stack, the module boundaries, the shared states | Which objects, mascots or signatures exist |
 
 ## Reference map
 

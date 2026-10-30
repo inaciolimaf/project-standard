@@ -41,7 +41,8 @@ Reversals outside the specs tell the same story: the booklet header of spec 19 w
 - **When the user prefers what was there, that is the answer.** Do not argue a scale or a layout from
   theory after they have seen it running.
 - **Typefaces are the user's call.** Crivo's user rejected Newsreader and Plex and restored Fraunces +
-  Inter. Show options on a real screen, and once chosen, never change them as part of another task.
+  Inter. Show options on a real screen, and once chosen, never change them as part of another task. New
+  projects do not use Inter (`identity.md`).
 
 ## What to show the user
 
