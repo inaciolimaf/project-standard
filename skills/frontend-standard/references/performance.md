@@ -12,8 +12,8 @@ These are field numbers. In a logged-in SPA the public tools see nothing, so col
 `web-vitals` package when the product has real users. INP is the one that matters here: a question app
 lives on clicks.
 
-Build budget (proposal to confirm): initial JS at most 250 KB gzip, checked in CI by a script over
-`dist/` or `size-limit`. A route that needs a heavy library loads it on its own.
+**Build budget: initial JS at most 250 KB gzip**, counting what `index.html` loads, preloads included. A
+script over `dist/` fails CI. A route that needs a heavy library loads it on its own.
 
 ## Bundle
 

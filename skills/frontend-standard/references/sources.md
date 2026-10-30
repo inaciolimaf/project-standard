@@ -23,4 +23,4 @@ Read on 2026-10-30. Primary sources decide numbers. Community sources only infor
 
 **Not verified.** Material 3's motion tokens could not be read, so the duration ranges in `motion.md` are
 Crivo's own. The advice on moving focus to the `h1` comes from guides, not from WCAG itself. The 250 KB
-budget is a proposal.
+budget is this standard's own decision, not an external number.

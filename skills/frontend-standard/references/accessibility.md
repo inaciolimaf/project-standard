@@ -14,8 +14,9 @@ still has a name, a role and a keyboard path.
 | 2.5.8 Target Size (Minimum) | 24×24 CSS px, with exceptions (spacing, inline, equivalent) | |
 | 4.1.3 Status Messages | status reaches assistive tech without moving focus | |
 
-Above AA, adopted anyway: focus indicator of at least 2 px at 3:1 (from 2.4.13, AAA), 44 px for the main
-touch actions, and the reduced motion of `motion.md`.
+Above AA, adopted anyway: a solid focus outline of at least 2 px at 3:1 (from 2.4.13, AAA), 44 px for the
+main touch actions, and the reduced motion of `motion.md`. A translucent token is never the only focus
+indicator: Crivo's `--ring`, at 30% alpha, measured about 1.7:1.
 
 ## In a React SPA
 

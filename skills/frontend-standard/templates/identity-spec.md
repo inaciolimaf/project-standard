@@ -30,7 +30,7 @@ What light is and what dark is. Each one in a sentence of its own.
 
 ## 6. Motion
 
-The material, the moments that exist, what is off by default.
+How much motion the product has, its material, the moments that exist, what is off by default.
 
 ## 7. Screens
 

@@ -38,9 +38,9 @@ kept in both is changed in both.
 | Two themes, each designed on its own | What the dark theme is (Crivo: a chalkboard) |
 | A type scale of about five sizes, tabular figures; no Inter in a new project | The typefaces (the user picks them on a real screen) |
 | One root skeleton component per screen, enforced by a test | What that skeleton is (Crivo: a printed document) |
-| Motion rules: what may animate, reduced motion, tokens | The material of the motion, and how much of it |
+| Motion rules: what may animate, reduced motion, tokens | How much motion exists, and its material |
 | Accessibility (`references/accessibility.md`) | Nothing: this is not negotiable by identity |
-| Performance budgets (`references/performance.md`) | The numbers, only if the product justifies a change |
+| Performance budgets, 250 KB gzip of initial JS (`references/performance.md`) | Nothing, unless the spec justifies a change |
 | The stack, the module boundaries, the shared states | Which objects, mascots or signatures exist |
 
 ## Reference map
@@ -83,7 +83,7 @@ evidence (file, measurement). Show it before changing anything.
 
 **Tokens and CSS**
 - [ ] colour only through tokens with a value in each theme; lint blocks raw colours elsewhere
-- [ ] each theme designed on its own; a text pair contrast test runs over both
+- [ ] each theme designed on its own; a contrast test over text and control pairs runs on both
 - [ ] no `text-white` over a colour: an `on-*` token
 - [ ] a type scale of tokens, tabular figures where numbers are compared
 - [ ] a stylesheet per area; composition classes in `@layer components`
@@ -92,7 +92,7 @@ evidence (file, measurement). Show it before changing anything.
 
 **Motion**
 - [ ] durations and easings are tokens, mirrored in one TS file
-- [ ] only `transform`, `opacity` and SVG stroke dashes animate
+- [ ] only `transform`, `opacity` and SVG stroke dashes animate; a test parses every `@keyframes`
 - [ ] `prefers-reduced-motion` gives an instant swap, including motion driven by JavaScript timers
 - [ ] nothing loops except loading; no motion blocks the next key
 - [ ] sound and vibration off until the user turns them on
@@ -100,12 +100,13 @@ evidence (file, measurement). Show it before changing anything.
 **Accessibility**
 - [ ] axe in the e2e over every route, in both themes
 - [ ] route change moves focus and updates `document.title`; a skip link exists
-- [ ] visible focus at 3:1 or better, never hidden by a sticky bar
+- [ ] focus outline solid, at least 2 px and 3:1 in both themes, never hidden by a sticky bar
 - [ ] pointer targets at least 24×24 CSS px, 44 px for the main touch actions
 - [ ] everything works by keyboard; dialogs trap and return focus; live regions for async results
 
 **Performance**
-- [ ] routes split, with a bundle budget that fails CI
+- [ ] routes split; initial JS at most 250 KB gzip, or CI fails
+- [ ] only the font axes and subsets in use are loaded
 - [ ] LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 at the 75th percentile, measured in the field
 - [ ] client navigation, prefetch on intent, neighbours warmed where the next step is obvious
 - [ ] reloading any screen rebuilds its state from the server

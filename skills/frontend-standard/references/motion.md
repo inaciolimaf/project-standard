@@ -2,6 +2,9 @@
 
 ## The rule
 
+**How much motion a product has is decided in its identity spec.** Crivo asked for a lot; a tool used all
+day may want almost none. What follows applies at any level.
+
 Every motion answers something the user did, or shows that a state changed. Each identity names the
 material things move as (Crivo: paper, ink or chalk). A motion that fits no material does not exist.
 
