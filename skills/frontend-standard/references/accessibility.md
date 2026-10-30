@@ -41,6 +41,8 @@ indicator: Crivo's `--ring`, at 30% alpha, measured about 1.7:1.
 
 - `@axe-core/playwright` over every route of the e2e list, tags `wcag2a`, `wcag2aa`, `wcag22aa`, in both
   themes. Fails on any violation; a known exception is listed with its reason.
+- A route opened with a fake id only shows its error state to axe, so also open at least one screen with
+  real data.
 - Contrast test: a unit test reads the theme blocks of `styles.css` and checks a declared list of text and
   control pairs in both themes. axe only sees what is rendered at that moment; this covers all states.
 - Screen tests use `getByRole` first, which fails when a control has no name.

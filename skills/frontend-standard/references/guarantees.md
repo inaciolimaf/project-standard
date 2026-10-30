@@ -17,18 +17,20 @@
 | Main paths work | Playwright flows | yes |
 | Coverage | Vitest floor of 60% | yes |
 | Sound off by default, reduced motion | one test per area | yes |
-| No accessibility violation | axe over every route, both themes | **gap** |
-| Text pairs have contrast | unit test over the theme blocks | **gap** |
-| Only cheap properties animate | a script parses `@keyframes` and allows a list | **gap** |
-| Bundle under budget | CI check over `dist/` | **gap** |
-| Focus moves on navigation | flow test | **gap** |
-| Screens do not regress visually | Playwright `toHaveScreenshot` for the skeletons | **gap**, see below |
+| No accessibility violation | axe over every route, both themes | yes |
+| Text pairs have contrast | unit test over the theme blocks | yes |
+| Only cheap properties animate | a script parses `@keyframes` and allows a list | yes |
+| Bundle under budget | CI script over `dist/` (`make orcamento`) | yes |
+| Focus moves on navigation | flow test | yes |
+| Screens do not regress visually | Playwright `toHaveScreenshot` for the skeletons | no, optional, see below |
 
 ## Screen tests
 
 - Query priority follows Testing Library: role, label, text, and test ids only when nothing else fits.
 - `renderScreen` mounts the real router with `createAppRouter`; `fakeApi` answers 404 naming the missing
   route.
+- With lazy routes, `renderScreen` waits for the router to go idle: returning when `main` exists, before
+  the chunk loads, makes tests fail at random.
 - A visual bug that a test can describe (a class, a data attribute, an overflow) comes with that test.
   One that only the eyes can catch comes with a note in the commit.
 

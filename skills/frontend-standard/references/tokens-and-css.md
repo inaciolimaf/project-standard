@@ -10,6 +10,9 @@ names are roles (`surface`, `ink`, `ink-muted`, `primary`, `on-primary`, `error`
   component tier only when one component has several states to theme (the avatar metals, for instance).
 - **The `-soft` / `-text` trio.** A status colour has its solid, its tint, and a text colour safe on that
   tint. This is what kept every text pair in Crivo above 4.5:1 in both themes.
+- **A control edge token.** A decorative border may be pale, but the edge that alone identifies an input,
+  select, checkbox or radio is a token of its own at 3:1 or better on every surface (Crivo's
+  `--control-edge`).
 - **`on-*` over any solid colour.** `text-white` disappears in dark mode, where solids get lighter.
 - **Each theme is designed on its own.** Same roles, different decisions. Inversion is forbidden.
 - **Theme application.** The stored value is written only when the user chooses; until then follow the

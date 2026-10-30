@@ -109,11 +109,13 @@ holding the site until someone restarts it.
   ```python
   engine = create_async_engine(
       settings.database_url,
-      connect_args={"server_settings": {  # psycopg: {"options": "-c lock_timeout=10s -c ..."}
-          "lock_timeout": "10s",
-          "statement_timeout": "30s",
-          "idle_in_transaction_session_timeout": "60s",
-      }},
+      connect_args={
+          "server_settings": {  # psycopg: {"options": "-c lock_timeout=10s -c ..."}
+              "lock_timeout": "10s",
+              "statement_timeout": "30s",
+              "idle_in_transaction_session_timeout": "60s",
+          }
+      },
   )
   ```
 
