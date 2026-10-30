@@ -120,6 +120,19 @@ holding the site until someone restarts it.
   `lock_timeout` shorter than a request is willing to wait; `idle_in_transaction_session_timeout`
   longer than the slowest external call made inside a transaction. A migration or bulk job that
   needs more raises it for its own transaction with `SET LOCAL`, never globally.
+- **Before turning the limits on, audit what they would kill.** List every slow wait that is not the
+  database inside a transaction and every statement that takes minutes on production data (a small
+  dev database hides them). In a request the transaction is usually already open, because the
+  current-user dependency reads through the same session, so it cannot be ended before a model
+  call. Give the session two helpers built on `select(func.set_config(name, value, True))`, which
+  is `SET LOCAL` through the query builder (Crivo: `db.allow_idle(session, seconds)` and
+  `db.allow_long_statements(session)`), and call them before the wait. Without this the model call
+  is paid for and the commit fails on a dead connection.
+- **Moving work to threads changes what could overlap.** Blocking the loop was serializing things by
+  accident. After the move: a burst of logins passes the attempt check together (serialize them
+  per IP with `pg_advisory_xact_lock`), two writers share one temporary file (unique temporary
+  names), `check then act` needs a recheck after the `await`, and a library that is not thread-safe
+  (PDFium) needs one process-wide lock, not one per module.
 - **Inside Python**: locks, queues, semaphores and `await`s on other services wrapped in
   `asyncio.timeout(...)`.
 - Guarantee: an integration test opens a session through the app's own factory and asserts
