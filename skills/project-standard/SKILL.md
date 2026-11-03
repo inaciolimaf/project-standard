@@ -66,6 +66,7 @@ Details in `references/runtime.md`, `references/docker-and-deploy.md` and
 | Docker and local compose | [references/docker-and-deploy.md](references/docker-and-deploy.md) |
 | What changes to deploy on Coolify | [references/coolify.md](references/coolify.md) |
 | Makefile and CI | [references/makefile-and-ci.md](references/makefile-and-ci.md) |
+| How long the tests and CI take (180 s budget) | the `test-speed` skill |
 | Settings, errors, logging, LLM | [references/runtime.md](references/runtime.md) |
 | System documentation, `CLAUDE.md`, update rule | [references/documentation.md](references/documentation.md) |
 | Specs, language, glossary, commits | [references/specs-and-commits.md](references/specs-and-commits.md) |
@@ -181,7 +182,8 @@ Files ready to copy: `templates/tools/function_size.py` (function and file size 
 - [ ] healthcheck on every service; `depends_on: condition: service_healthy`
 - [ ] entrypoint that migrates when the migrate-on-start variable is `true`
 - [ ] `.env.example` commented by section; `.env*` in `.gitignore` and `.dockerignore`
-- [ ] `Makefile` with a self-documenting `help`; CI with jobs `back`, `web`, `e2e`
+- [ ] `Makefile` with a self-documenting `help`; CI with jobs `check`, `back`, `web`, `e2e` side by
+      side and a `gate` that fails past 180 s (the `test-speed` skill)
 
 **Documentation** (`documentation.md`)
 - [ ] complete `CLAUDE.md` (template in `templates/CLAUDE.md`) with the sections "Documentation —

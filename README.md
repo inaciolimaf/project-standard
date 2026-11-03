@@ -7,9 +7,11 @@ project.
 |---|---|
 | [`project-standard`](skills/project-standard/SKILL.md) | Python (FastAPI + uv) with a React frontend: modular monolith, lint and types, test pyramid, Docker, Coolify, Makefile, CI, system documentation, language rule |
 | [`frontend-standard`](skills/frontend-standard/SKILL.md) | React (Vite + TS + Tailwind v4 + TanStack) screens: visual identity, tokens, motion, accessibility, performance, CSS traps, and the lint and tests that guarantee them |
+| [`test-speed`](skills/test-speed/SKILL.md) | Keeping the test suite and CI under 180 s: measure first, then cheap hashing in tests, pytest-xdist, Vitest threads, one e2e login, shards, parallel jobs, and the wall-clock gate |
 
 Each skill works alone. They repeat the frontend basics on purpose; where they disagree on a frontend
-subject, `frontend-standard` wins.
+subject, `frontend-standard` wins. `test-speed` owns how long the tests and CI take; `project-standard`
+owns what they test.
 
 ## Install
 
@@ -30,6 +32,6 @@ and link it as above: the skill no longer sits at the root of the repository.
 
 ## Use
 
-Ask something like "apply the project standard to this repository" or "aplica o padrão de front", or call
-`/project-standard` or `/frontend-standard`. Both start by auditing and show what is missing before
+Ask something like "apply the project standard to this repository", "aplica o padrão de front" or "reduz o
+tempo dos testes", or call `/project-standard`, `/frontend-standard` or `/test-speed`. Each starts by auditing (or, for `test-speed`, measuring) and shows what is missing before
 changing anything.

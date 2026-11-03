@@ -51,26 +51,31 @@ Scripts in `web/package.json` (new project): `dev`, `build` (`tsc -b && vite bui
 
 First line: a one-line comment saying what runs. `on: push: [main]` + `pull_request`.
 
-**`back`** (Postgres service with a healthcheck, database `<app>_test`):
-1. `astral-sh/setup-uv` → `uv sync --frozen`
-2. `ruff check . && ruff format --check .`
-3. `python -m tools.function_size`
-4. `lint-imports`
-5. `python -m tools.docs_coverage`
-6. `mypy`
-7. `pytest -q --cov` with the test database URL (the backend coverage floor fails here)
-8. contract: generate `openapi.json`, `npm ci`, the types script,
-   `git diff --exit-code -- src/api/types.ts`
+**The whole run lasts at most 180 s**, and the jobs run side by side with no `needs` between them, so
+only the slowest counts. How to get there and keep it — the job layout, the `gate`, caches, shards —
+is the `test-speed` skill (`skills/test-speed/references/ci.md`).
+
+**`check`**: `astral-sh/setup-uv` (`prune-cache: false`) → `uv sync --frozen` →
+`ruff check . && ruff format --check .` → `python -m tools.function_size` → `lint-imports` →
+`python -m tools.docs_coverage` → `mypy` → contract (generate `openapi.json`, `npm ci`, the types
+script, `git diff --exit-code -- src/api/types.ts`) → eslint, format check, `npx tsc -b` → build and
+bundle budget.
+
+**`back`** (Postgres service on `--tmpfs` with a healthcheck, database `<app>_test`):
+`uv sync --frozen` → `pytest -n <N> -q --cov` with the test database URL and `COVERAGE_CORE=sysmon`
+(the backend coverage floor fails here).
 
 **`web`** (`working-directory: web`, Node 22 with npm cache by `package-lock.json`):
-`npm ci --no-audit --no-fund` → lint → format check → `npx tsc -b` → coverage (tests + the 60%
-floor) → `npm run build`
+`npm ci --no-audit --no-fund` → coverage (tests + the 60% floor) with `--maxWorkers=3`.
 
-**`e2e`** (`needs: [back, web]`, Postgres + a fake production env with 32+ byte secrets):
+**`e2e`** (a matrix of project × shard, Postgres + a fake production env with 32+ byte secrets):
 fake data (the same factory as the integration tests) → `alembic upgrade head` → load → create
 the e2e account through the CLI → start uvicorn in the background and wait for `/health` in a
 `curl` loop with a timeout (never `sleep N`; if it does not come up, print the API log and fail)
-→ `playwright install --with-deps chrome` → build → projects `routes`, `mobile` and `flows` →
-`upload-artifact` of the captures with `if: always()`.
+→ build → `npm run e2e -- --project=<p> --shard=<s>` (system Chrome, no `playwright install`) →
+`upload-artifact` of the captures with `if: always()`, one name per shard.
+
+**`gate`** (`needs` every job, `if: always()`): fails if any job failed or was cancelled, and if
+the run passed 180 s since it started.
 
 Rule: every CI step has an equivalent Makefile target.

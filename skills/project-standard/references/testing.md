@@ -164,6 +164,12 @@ code's `ast`: "only the unit of work calls `commit()`", "SQL only through the qu
 exceptions in `ALLOWED_SQL` with a reason) and "a module folder has at most 8 files". A new rule
 of this kind goes here, with a temporary list and `ARCHITECTURE_STRICT=1` to check the target.
 
+## Time
+
+The whole CI run lasts at most 180 s. Making and keeping the suite that fast (cheap hashing in tests,
+pytest-xdist with a database per worker, Vitest threads, one e2e login, shards, the gate) is the
+`test-speed` skill.
+
 ## Day to day
 
 Run the tests of the area you touched, not the whole suite; CI runs everything. If CI breaks, fix
