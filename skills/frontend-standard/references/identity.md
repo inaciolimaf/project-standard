@@ -40,6 +40,23 @@ in green, amber and red read as a verdict, so it became pen blue (`9221a72`).
 - Each figure has one encoding. Not a circle, a badge and a ruler for the same rate.
 - Colour is never alone: an icon, a word or a mark says the same thing.
 
+## A warning sits on what it is about
+
+People read what is close together as one group, so position already says which thing a warning is
+about. A warning gathered in a list of its own makes the user carry the name to another place and find the
+thing again; the system knew the link and handed the work over.
+
+- A warning, an error or a "needs review" state is printed on the thing it is about: the row, the field,
+  the item, the number. An error of a form field is next to that field.
+- The action that resolves it is there too, so it is fixed from where it was read.
+- A summary of warnings may still exist, but only as an index: each entry takes the user to the thing
+  (opens its group, scrolls, moves focus) instead of describing where to go.
+- The same goes for a count that asks for action: the way to act sits beside the count.
+- What fires the warning does not change when it moves; only where it is shown does.
+
+Guarantee: the whole-screen test finds the warning inside the thing's row (`within(row)`) and uses its
+action from there, and clicks an index entry and checks that focus lands on the thing.
+
 ## Type
 
 - About five sizes as tokens. Fixed, not per screen. Crivo: small, body, heading, title, figure.

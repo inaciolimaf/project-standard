@@ -18,6 +18,8 @@ Read on 2026-10-30. Primary sources decide numbers. Community sources only infor
 **Community, weak evidence**
 - Generic AI look: https://noqta.tn/en/blog/ai-design-slop-overused-ui-patterns-fix-2026 and
   https://skills.sh/pbakaus/impeccable/frontend-design
+- Warning on its item (proximity), visual hierarchy, recognising items by image: a Portuguese video on
+  redesigning an app made by AI ("3 pedidos ao Fable 5.2 pro meu design perder a cara de IA"), 2026-11
 - Focus management: https://accessibility.arizona.edu/web-apps/focus-management and
   https://oneuptime.com/blog/post/2026-01-15-focus-management-react-spa/view
 

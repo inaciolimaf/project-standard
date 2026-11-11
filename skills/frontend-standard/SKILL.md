@@ -80,6 +80,7 @@ evidence (file, measurement). Show it before changing anything.
 - [ ] each screen renders exactly one root skeleton, and a test counts it
 - [ ] one solid main action per screen; the alarm colour has a written budget
 - [ ] colour never carries meaning alone: an icon, text or mark goes with it
+- [ ] a warning sits on the thing it is about, with its action; a list of warnings is only an index
 
 **Tokens and CSS**
 - [ ] colour only through tokens with a value in each theme; lint blocks raw colours elsewhere

@@ -15,6 +15,7 @@
 | Every route opens | e2e over a list compared with the router | yes |
 | No horizontal overflow at 390×844 | e2e `scrollWidth > innerWidth` | yes |
 | Main paths work | Playwright flows | yes |
+| A warning sits on its thing, with its action | whole-screen test with `within(row)` | yes |
 | Coverage | Vitest floor of 60% | yes |
 | Sound off by default, reduced motion | one test per area | yes |
 | No accessibility violation | axe over every route, both themes | yes |
