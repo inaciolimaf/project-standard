@@ -2,7 +2,8 @@
 
 ## 1. Baseline
 
-Run every area in the background, one after the other (they share the CPU), each under `timeout`:
+With the tool's `--all`, one run covers every file in scope (`make mutation-all`, at most 40 min). Or
+run every area in the background, one after the other (they share the CPU), each under `timeout`:
 
 ```bash
 for a in area1 area2 area3; do
@@ -25,7 +26,10 @@ needs no agent.
 - **One agent per area**, each in its own worktree (`isolation: "worktree"`), new test files with an
   area prefix (`tests/test_<area>_mut_<topic>.py`), so merges never conflict. Split an area with more
   than ~1,500 survivors in two by module.
-- **A cheap model** (the user chose Haiku): the work is many small, well-specified tests.
+- **A cheap model**: the work is many small, well-specified tests. The card games used Haiku; Crivo
+  used Sonnet, for domain rules written in Portuguese. Ask the user.
+- **"no tests" survivors** (marked `(no tests)` in the file) mean no unit test runs the function at
+  all: the agent writes the first tests of that module, starting from its public functions.
 - **They never run mutation testing.** They read the survivors file and run only pytest. **Target
   90%** in the brief so the one real measurement lands above 80%.
 - **They never change application code.** A correct test that exposes a bug stays, marked
@@ -45,6 +49,7 @@ your survivors file is an edit that **no test noticed**. Write tests that would 
 
 ## Hard rules
 1. **Never run mutation testing** (`mutmut`, `make mutation`, `tools.mutation`). Work from the file.
+   Run only the unit tests (`tests/unit`): no database, no migrations, no e2e.
 2. **Do not change anything under `backend/app/`.** If a correct test exposes a real bug, keep it,
    mark it `@pytest.mark.xfail(strict=True, reason="BUG: <one line>")` and list it in your report.
 3. Test **behaviour**: state, returned events, what each user's view contains and must NOT contain,
@@ -72,6 +77,10 @@ time before and after.
 ```
 
 ## 4. Integrate and measure once
+
+The loop is: measure → agents → integrate → measure. Only the main agent measures, and only after
+every branch is merged; an area still below its tier gets a second round from the **new** survivors
+file (`SendMessage` to the same agent), then one more measurement.
 
 1. Merge each branch (`git diff --name-only main...<branch>` must list only test files).
 2. Fix the bugs the xfail tests describe, each with its test turned green.
