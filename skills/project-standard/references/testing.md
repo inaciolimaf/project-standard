@@ -170,6 +170,13 @@ The whole CI run lasts at most 180 s. Making and keeping the suite that fast (ch
 pytest-xdist with a database per worker, Vitest threads, one e2e login, shards, the gate) is the
 `test-speed` skill.
 
+## Quality
+
+Line coverage says a line ran; mutation testing says a test would fail if the line were wrong.
+Every change is mutated in CI on the functions it touched, held to a minimum per tier (domain
+rules 80%, heuristics 65%), and the unit tests it runs finish in 5 s in one process: the
+`mutation-testing` skill.
+
 ## Day to day
 
 Run the tests of the area you touched, not the whole suite; CI runs everything. If CI breaks, fix
