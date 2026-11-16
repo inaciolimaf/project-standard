@@ -54,6 +54,7 @@ this skill owns how long they take.
 | 9 | Coverage tracing with `sys.settrace` | `COVERAGE_CORE=sysmon` (Python ≥ 3.12) | `backend.md` |
 | 10 | `playwright install --with-deps chrome` in every e2e job | `channel: "chrome"` uses the Chrome already in the runner image | `e2e.md` |
 | 11 | The production build inside the test job | build and bundle budget in `check` (e2e still builds what it serves) | `ci.md` |
+| 12 | An autouse fixture that asks for `tmp_path` (pytest rescans its numbered folders per test: quadratic) or builds the settings object for every test | a fresh path from `tmp_path_factory.getbasetemp()` created only by the code that writes; settings built by whoever reads them (Crivo: 4.0 → 3.0 s for 1,079 unit tests) | `backend.md` |
 
 Always check #1 first: in Crivo three hashes per test at cost 12 were the bulk of the backend suite,
 and the same hash, done by the API on every e2e login, was most of the e2e time.
