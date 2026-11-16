@@ -106,8 +106,20 @@ produces absurd tests. The reference used by Stryker is 80 "good", 60 "low".
 - **A leaking test fails the clean run.** mutmut calls pytest more than once in the same process: a
   test that subscribes to a global registry and never undoes it finds its old subscribers the second
   time. Fix the test (`monkeypatch.setitem` on the registry), not the tool.
+- **Per-test fixture cost.** Every mutant pays the selection's fixed cost per test. In Crivo an
+  autouse fixture built the settings object (pydantic-settings) and asked for `tmp_path` in every
+  test; pytest rescans its numbered folders on each `tmp_path`, quadratic in the suite's size. After
+  the agents tripled the unit tests (361 → 1,079) the selection hit 4.0 s of 5; removing both took
+  it to 3.0 s. Profile with `python -m cProfile -m pytest ...` before trimming tests.
 - **Whole-match or end-to-end tests in the mutation selection.** They kill few extra mutants and
   multiply the time of every mutant.
+
+## Results
+
+| Project | Before | After | Run time (12 cores) | Notes |
+|---|---|---|---|---|
+| Card games | 63–77% per game | 84–92% | 39 → 17 min (whole backend) | 6 Haiku agents, 1 bug |
+| Crivo (FastAPI + Postgres, pure files only) | 59% (heuristics 54, domain 62) | 94% (92, 96) | 2 min 57 s → 1 min 54 s, 6.9k mutants | 7 Sonnet agents in parallel, one round, 2 bugs, +718 unit tests, selection 2.4 → 3.0 s |
 
 ## Checklist
 
