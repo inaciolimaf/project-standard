@@ -164,7 +164,7 @@ a date), and `SIZE_STRICT=1` ignores that list to check the target. On the front
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["api", "pipeline", "tools"]
+files = ["api", "pipeline", "tools", "tests"]
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
 
@@ -184,7 +184,10 @@ a parameter), `no_implicit_optional`, `warn_return_any`, `warn_unused_ignores`,
   there is none, `ignore_missing_imports` in the override.
 - A module that cannot be typed (e.g. the numba kernel): a module override turning off only what
   is needed, with a comment.
-- Tests do **not** go through mypy (current decision; see gaps).
+- Tests go through the same strict mypy (`tests` in `files`): fixtures, helpers, fakes and factories are
+  annotated, and a fake standing in for a real object is a `Protocol`, `TypedDict` or `cast`. No
+  `[[tool.mypy.overrides]]` relaxation for `tests.*`; the test relaxations live in ruff (`S`, `ANN`,
+  `PLR0913`, `E501`). Decided after Inkstave typed its 85 test files (359 errors, mostly `arg-type`).
 - `# type: ignore[code]` always with a code; `warn_unused_ignores` flags the leftovers.
 
 ## 5. eslint (frontend, flat config)
